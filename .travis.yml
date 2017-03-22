@@ -1,5 +1,6 @@
 language: java
-script: mvn clean verify -DprocessorIntegrationTest.toolchainsFile=etc/toolchains-travis-jenkins.xml
+install: true
+script: mvn clean install -DprocessorIntegrationTest.toolchainsFile=etc/toolchains-travis-jenkins.xml
 
 sudo: false
 addons:
