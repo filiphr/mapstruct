@@ -1,8 +1,5 @@
 language: java
-install:
-  - ls -la /usr/lib/jvm/
-  - ls -la /usr/lib/jvm/java-8-oracle/
-script: /usr/lib/jvm/java-6-openjdk-amd64/java -version
+script: mvn clean verify -DprocessorIntegrationTest.toolchainsFile=etc/toolchains-travis-jenkins.xml
 
 sudo: false
 addons:
