@@ -1,5 +1,4 @@
 language: java
-install: /usr/lib/jvm/java-8-oracle/java -version && /usr/lib/jvm/java-7-oracle -version
 script: /usr/lib/jvm/java-6-openjdk -version
 
 sudo: false
