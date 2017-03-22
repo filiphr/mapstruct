@@ -1,5 +1,11 @@
 language: java
-script: /usr/lib/jvm/java-6-openjdk -version
+install:
+  - /usr/lib/jvm/java-6-openjdk-amd64/java -version
+  - /usr/lib/jvm/java-7-oracle/java -version
+  - /usr/lib/jvm/java-8-oracle/java -version
+  - ls -la /usr/lib/jvm/
+  - ls -la /usr/lib/jvm/java-8-oracle/
+script: /usr/lib/jvm/java-6-openjdk-amd64/java -version
 
 sudo: false
 addons:
@@ -8,4 +14,4 @@ addons:
       - oracle-java8-installer
 
 jdk:
-   - openjdk6
+   - oraclejdk7
