@@ -305,6 +305,38 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <!--
+                    We have to exclude all the classes from the generated-sources because the
+                    coveralls-maven-plugin fails if it cannot find a source.
+                    There is https://github.com/trautonen/coveralls-maven-plugin/issues/113 that asks
+                    from the coveralls-maven-plugin not the fail when a source is missing
+                    -->
+                    <excludes>
+                        <exclude>**/AfterMappingPrism*</exclude>
+                        <exclude>**/BeanMappingPrism*</exclude>
+                        <exclude>**/BeforeMappingPrism*</exclude>
+                        <exclude>**/ContextPrism*</exclude>
+                        <exclude>**/DecoratedWithPrism*</exclude>
+                        <exclude>**/InheritConfigurationPrism*</exclude>
+                        <exclude>**/InheritInverseConfigurationPrism*</exclude>
+                        <exclude>**/IterableMappingPrism*</exclude>
+                        <exclude>**/MapMappingPrism*</exclude>
+                        <exclude>**/MapperConfigPrism*</exclude>
+                        <exclude>**/MapperPrism*</exclude>
+                        <exclude>**/MappingPrism*</exclude>
+                        <exclude>**/MappingsPrism*</exclude>
+                        <exclude>**/MappingTargetPrism*</exclude>
+                        <exclude>**/NamedPrism*</exclude>
+                        <exclude>**/ObjectFactoryPrism*</exclude>
+                        <exclude>**/QualifierPrism*</exclude>
+                        <exclude>**/TargetTypePrism*</exclude>
+                        <exclude>**/ValueMappingPrism*</exclude>
+                        <exclude>**/ValueMappingsPrism*</exclude>
+                        <exclude>**/XmlElementDeclPrism*</exclude>
+                        <exclude>**/XmlElementRefPrism*</exclude>
+                    </excludes>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
