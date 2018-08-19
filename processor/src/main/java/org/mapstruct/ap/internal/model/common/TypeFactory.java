@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
@@ -197,6 +198,7 @@ public class TypeFactory {
         String qualifiedName;
         TypeElement typeElement;
         Type componentType;
+        Type topLevelType;
         boolean isImported;
 
         if ( mirror.getKind() == TypeKind.DECLARED ) {
@@ -204,13 +206,14 @@ public class TypeFactory {
 
             isEnumType = declaredType.asElement().getKind() == ElementKind.ENUM;
             isInterface = declaredType.asElement().getKind() == ElementKind.INTERFACE;
-            name = declaredType.asElement().getSimpleName().toString();
+            name = declaredType.asElement().getKind().toString();
 
             typeElement = (TypeElement) declaredType.asElement();
 
             if ( typeElement != null ) {
                 packageName = elementUtils.getPackageOf( typeElement ).getQualifiedName().toString();
                 qualifiedName = typeElement.getQualifiedName().toString();
+                name = nameWithinTopLevelName( typeElement );
             }
             else {
                 packageName = null;
@@ -218,7 +221,8 @@ public class TypeFactory {
             }
 
             componentType = null;
-            isImported = isImported( name, qualifiedName );
+            isImported = isImported( typeElement, name, qualifiedName );
+            topLevelType = topLevelType( typeElement );
         }
         else if ( mirror.getKind() == TypeKind.ARRAY ) {
             TypeMirror componentTypeMirror = getComponentType( mirror );
@@ -234,10 +238,10 @@ public class TypeFactory {
                 TypeElement componentTypeElement = (TypeElement) declaredType.asElement();
 
                 String arraySuffix = builder.toString();
-                name = componentTypeElement.getSimpleName().toString() + arraySuffix;
+                name = nameWithinTopLevelName( componentTypeElement ) + arraySuffix;
                 packageName = elementUtils.getPackageOf( componentTypeElement ).getQualifiedName().toString();
                 qualifiedName = componentTypeElement.getQualifiedName().toString() + arraySuffix;
-                isImported = isImported( name, qualifiedName );
+                isImported = isImported( componentTypeElement, name, qualifiedName );
             }
             else if (componentTypeMirror.getKind().isPrimitive()) {
                 // When the component type is primitive and is annotated with ElementType.TYPE_USE then
@@ -259,6 +263,7 @@ public class TypeFactory {
             isInterface = false;
             typeElement = null;
             componentType = getType( getComponentType( mirror ) );
+            topLevelType = null;
         }
         else {
             isEnumType = false;
@@ -268,6 +273,7 @@ public class TypeFactory {
             qualifiedName = name;
             typeElement = null;
             componentType = null;
+            topLevelType = null;
             isImported = false;
         }
 
@@ -279,6 +285,7 @@ public class TypeFactory {
             getTypeParameters( mirror, false ),
             implementationType,
             componentType,
+            topLevelType,
             builderInfo,
             packageName,
             name,
@@ -499,9 +506,10 @@ public class TypeFactory {
                 getTypeParameters( mirror, true ),
                 null,
                 null,
+                topLevelType( implementationType.getTypeElement() ),
                 null,
                 implementationType.getPackageName(),
-                implementationType.getName(),
+                nameWithinTopLevelName( implementationType.getTypeElement() ),
                 implementationType.getFullyQualifiedName(),
                 implementationType.isInterface(),
                 implementationType.isEnumType(),
@@ -509,7 +517,11 @@ public class TypeFactory {
                 implementationType.isCollectionType(),
                 implementationType.isMapType(),
                 implementationType.isStreamType(),
-                isImported( implementationType.getName(), implementationType.getFullyQualifiedName() ),
+                isImported(
+                    implementationType.getTypeElement(),
+                    implementationType.getName(),
+                    implementationType.getFullyQualifiedName()
+                ),
                 implementationType.isLiteral()
             );
             return implementation.createNew( replacement );
@@ -545,7 +557,11 @@ public class TypeFactory {
         return arrayType.getComponentType();
     }
 
-    private boolean isImported(String name, String qualifiedName) {
+    private boolean isImported(TypeElement typeElement, String name, String qualifiedName) {
+        if ( typeElement != null && typeElement.getNestingKind().isNested() ) {
+            return false;
+        }
+
         String trimmedName = TypeFactory.trimSimpleClassName( name );
         String trimmedQualifiedName = TypeFactory.trimSimpleClassName( qualifiedName );
         String importedType = importedQualifiedTypesBySimpleName.get( trimmedName );
@@ -665,6 +681,38 @@ public class TypeFactory {
             trimmedClassName = trimmedClassName.substring( 0, trimmedClassName.length() - 2 );
         }
         return trimmedClassName;
+    }
+
+    static String nameWithinTopLevelName(TypeElement element) {
+        if ( !element.getNestingKind().isNested() ) {
+            return element.getSimpleName().toString();
+        }
+
+        StringBuilder builder = new StringBuilder( element.getQualifiedName().length() );
+        builder.append( element.getSimpleName().toString() );
+        Element parent = element.getEnclosingElement();
+        while ( parent != null && parent.getKind() != ElementKind.PACKAGE ) {
+            builder.insert( 0, '.' );
+            builder.insert( 0, parent.getSimpleName().toString() );
+            parent = parent.getEnclosingElement();
+        }
+        return builder.toString();
+    }
+
+    private Type topLevelType(TypeElement typeElement) {
+        if ( typeElement == null || typeElement.getNestingKind() == NestingKind.TOP_LEVEL ) {
+            return null;
+        }
+
+        Element parent = typeElement.getEnclosingElement();
+        while ( parent != null ) {
+            if ( parent.getEnclosingElement() != null &&
+                parent.getEnclosingElement().getKind() == ElementKind.PACKAGE ) {
+                break;
+            }
+            parent = parent.getEnclosingElement();
+        }
+        return parent == null ? null : getType( parent.asType() );
     }
 
     /**

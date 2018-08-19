@@ -64,6 +64,7 @@ public class Type extends ModelElement implements Comparable<Type> {
 
     private final ImplementationType implementationType;
     private final Type componentType;
+    private final Type topLevelType;
     private final BuilderType builderType;
 
     private final String packageName;
@@ -76,6 +77,7 @@ public class Type extends ModelElement implements Comparable<Type> {
     private final boolean isCollectionType;
     private final boolean isMapType;
     private final boolean isImported;
+    private final boolean isNested;
     private final boolean isVoid;
     private final boolean isStream;
     private final boolean isLiteral;
@@ -99,6 +101,7 @@ public class Type extends ModelElement implements Comparable<Type> {
                 AccessorNamingUtils accessorNaming,
                 TypeMirror typeMirror, TypeElement typeElement,
                 List<Type> typeParameters, ImplementationType implementationType, Type componentType,
+                Type topLevelType,
                 BuilderInfo builderInfo,
                 String packageName, String name, String qualifiedName,
                 boolean isInterface, boolean isEnumType, boolean isIterableType,
@@ -114,6 +117,7 @@ public class Type extends ModelElement implements Comparable<Type> {
         this.typeElement = typeElement;
         this.typeParameters = typeParameters;
         this.componentType = componentType;
+        this.topLevelType = topLevelType;
         this.implementationType = implementationType;
 
         this.packageName = packageName;
@@ -127,6 +131,7 @@ public class Type extends ModelElement implements Comparable<Type> {
         this.isMapType = isMapType;
         this.isStream = isStreamType;
         this.isImported = isImported;
+        this.isNested = this.typeElement != null && this.typeElement.getNestingKind().isNested();
         this.isVoid = typeMirror.getKind() == TypeKind.VOID;
         this.isLiteral = isLiteral;
 
@@ -172,7 +177,7 @@ public class Type extends ModelElement implements Comparable<Type> {
      * @return Just the name if this {@link Type} will be imported, otherwise the fully-qualified name.
      */
     public String getReferenceName() {
-        return isImported ? name : qualifiedName;
+        return isImported || isTopLevelTypeImported() ? name : qualifiedName;
     }
 
     public List<Type> getTypeParameters() {
@@ -335,6 +340,10 @@ public class Type extends ModelElement implements Comparable<Type> {
             result.addAll( getTypeBound().getImportTypes() );
         }
 
+        if ( topLevelType != null ) {
+            result.addAll( topLevelType.getImportTypes() );
+        }
+
         return result;
     }
 
@@ -347,6 +356,10 @@ public class Type extends ModelElement implements Comparable<Type> {
      */
     public boolean isImported() {
         return isImported;
+    }
+
+    public boolean isTopLevelTypeImported() {
+        return topLevelType != null && topLevelType.isImported();
     }
 
     /**
@@ -378,6 +391,7 @@ public class Type extends ModelElement implements Comparable<Type> {
             typeParameters,
             implementationType,
             componentType,
+            topLevelType,
             builderType == null ? null : builderType.asBuilderInfo(),
             packageName,
             name,
@@ -419,6 +433,7 @@ public class Type extends ModelElement implements Comparable<Type> {
             bounds,
             implementationType,
             componentType,
+            topLevelType,
             builderType == null ? null : builderType.asBuilderInfo(),
             packageName,
             name,
