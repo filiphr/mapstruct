@@ -22,6 +22,7 @@ import org.mapstruct.ap.internal.prism.NullValuePropertyMappingStrategyPrism;
 import org.mapstruct.ap.internal.prism.ReportingPolicyPrism;
 import org.mapstruct.ap.internal.util.FormattingMessager;
 import org.mapstruct.ap.internal.util.Message;
+import org.mapstruct.ap.spi.TypeHierarchyErroneousException;
 
 /**
  * Represents an bean mapping as configured via {@code @BeanMapping}.
@@ -99,6 +100,9 @@ public class BeanMapping {
 
             if ( prism == null ) {
                 return null;
+            }
+            else if ( !prism.isValid ) {
+                throw new TypeHierarchyErroneousException( prism.mirror.getAnnotationType() );
             }
 
             Objects.requireNonNull( method );
