@@ -244,7 +244,7 @@ public class MappingMethodOptions {
             // multiple targets. It is not possible for target, but caught by the Set and equals methoded in
             // MappingOptions. SourceName == null also could hint at redefinition
             if ( redefinedName.length() > inheritedName.length() ) {
-                // redefined.lenght() > inherited.length(), first following character should be separator
+                // redefined.length() > inherited.length(), first following character should be separator
                 return '.' == redefinedName.charAt( inheritedName.length() );
             }
         }
