@@ -744,7 +744,11 @@ public class Type extends ModelElement implements Comparable<Type> {
      * @return accessor candidates
      */
     private List<Accessor> getAccessorCandidates(Type property, Class<?> superclass) {
-        TypeMirror typeArg = first( property.determineTypeArguments( superclass ) ).getTypeBound().getTypeMirror();
+        List<Type> typeArguments = property.determineTypeArguments( superclass );
+        if ( typeArguments.isEmpty() ) {
+            return Collections.emptyList();
+        }
+        TypeMirror typeArg = first( typeArguments ).getTypeBound().getTypeMirror();
         // now, look for a method that
         // 1) starts with add,
         // 2) and has typeArg as one and only arg

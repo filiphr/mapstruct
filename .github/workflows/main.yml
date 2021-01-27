@@ -24,6 +24,11 @@ jobs:
           java-version: ${{ matrix.java }}
       - name: 'Test'
         run: ./mvnw ${MAVEN_ARGS} install -DskipDistribution=true
+      - name: Publish Test Report
+        uses: scacap/action-surefire-report@v1
+        if: ${{ always() }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
   linux:
     name: 'Linux JDK 8'
     runs-on: ubuntu-latest
@@ -43,6 +48,11 @@ jobs:
       - name: 'Publish Snapshots'
         if: github.event_name == 'push' && github.ref == 'refs/heads/master' && github.repository == 'mapstruct/mapstruct'
         run: ./mvnw -s etc/ci-settings.xml -DskipTests=true -DskipDistribution=true deploy
+      - name: Publish Test Report
+        uses: scacap/action-surefire-report@v1
+        if: ${{ always() }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
   windows:
     name: 'Windows'
     runs-on: windows-latest
@@ -54,6 +64,11 @@ jobs:
           java-version: 8
       - name: 'Test'
         run: ./mvnw ${MAVEN_ARGS} install
+      - name: Publish Test Report
+        uses: scacap/action-surefire-report@v1
+        if: ${{ always() }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
   mac:
     name: 'Mac OS'
     runs-on: macos-latest
@@ -65,3 +80,8 @@ jobs:
           java-version: 8
       - name: 'Test'
         run: ./mvnw ${MAVEN_ARGS} install
+      - name: Publish Test Report
+        uses: scacap/action-surefire-report@v1
+        if: ${{ always() }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}

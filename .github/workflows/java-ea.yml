@@ -22,3 +22,8 @@ jobs:
           java-version: ${{ matrix.java }}
       - name: 'Test'
         run: ./mvnw ${MAVEN_ARGS} install -DskipDistribution=true
+      - name: Publish Test Report
+        uses: scacap/action-surefire-report@v1
+        if: ${{ always() }}
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
