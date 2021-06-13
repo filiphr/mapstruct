@@ -64,7 +64,8 @@ public class MavenIntegrationTest {
 
     @ProcessorTest(baseDir = "immutablesBuilderTest", processorTypes = {
         ProcessorTest.ProcessorType.JAVAC,
-        ProcessorTest.ProcessorType.ECLIPSE_JDT
+        // Eclipse is disabled because there is some kind of a bug in the compiler that doesn't work well
+        // for the AddressWithStyleMapperTest
     })
     void immutablesBuilderTest() {
     }
