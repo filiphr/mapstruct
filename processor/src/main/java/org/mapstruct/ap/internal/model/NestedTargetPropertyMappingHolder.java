@@ -147,6 +147,32 @@ public class NestedTargetPropertyMappingHolder {
                 groupedByTP.poppedTargetReferences.entrySet() ) {
                 String targetProperty = entryByTP.getKey();
                 //Now we are grouping the already popped mappings by the source parameter(s) of the method
+
+                // TODO Create mappings now
+
+                Type nestedTargetType;
+                List<Parameter> parameters = new ArrayList<>( method.getParameters() );
+                MappingReferences targetMappingReferences = new MappingReferences( entryByTP.getValue(), false, true );
+                ForgedMethod forgedMethod = ForgedMethod.forNestedTarget(
+                    "TBD",
+                    nestedTargetType,
+                    parameters,
+                    method,
+                    null,
+                    targetMappingReferences
+                );
+                Type builderBaseType = forgedMethod.getReturnType();
+
+                BeanMappingMethod beanMappingMethod = new BeanMappingMethod.Builder()
+                    .mappingContext( mappingContext )
+                    .forgedMethod( forgedMethod )
+                    .returnTypeBuilder( mappingContext.getTypeFactory().builderTypeFor( builderBaseType, null ) )
+                    .build();
+
+                if ( beanMappingMethod != null ) {
+                    // TODO
+                }
+
                 GroupedBySourceParameters groupedBySourceParam = groupBySourceParameter(
                     entryByTP.getValue(),
                     groupedByTP.singleTargetReferences.get( targetProperty )

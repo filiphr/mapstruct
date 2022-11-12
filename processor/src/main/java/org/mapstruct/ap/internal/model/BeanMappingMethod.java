@@ -971,10 +971,17 @@ public class BeanMappingMethod extends NormalTypeMappingMethod {
                 errorOccurred = handleDefinedNestedTargetMapping( handledTargets, resultTypeToMap );
             }
 
+            Map<String, Set<MappingReference>> nestedReferences = new LinkedHashMap<>();
+
             for ( MappingReference mapping : mappingReferences.getMappingReferences() ) {
                 if ( mapping.isValid() ) {
+                    TargetReference targetReference = mapping.getTargetReference();
                     String target = mapping.getTargetReference().getShallowestPropertyName();
-                    if ( !handledTargets.contains( target ) ) {
+                    if ( targetReference.isNested() ) {
+                        nestedReferences.computeIfAbsent( target, k -> new LinkedHashSet<>() )
+                            .add( mapping );
+                    }
+                    else if ( !handledTargets.contains( target ) ) {
                         if ( handleDefinedMapping( mapping, resultTypeToMap, handledTargets ) ) {
                             errorOccurred = true;
                         }
@@ -990,6 +997,72 @@ public class BeanMappingMethod extends NormalTypeMappingMethod {
                     errorOccurred = true;
                 }
             }
+
+            for ( Entry<String, Set<MappingReference>> entry : nestedReferences.entrySet() ) {
+                String targetPropertyName = entry.getKey();
+
+                Accessor targetWriteAccessor = unprocessedTargetProperties.get( targetPropertyName );
+
+                if ( targetWriteAccessor == null ) {
+                    //TODO get history
+                    String targetName = targetPropertyName;
+
+                    Message msg;
+                    Object[] args;
+
+                    if ( Objects.equals( targetPropertyName, targetName ) ) {
+                        msg = Message.BEANMAPPING_PROPERTY_HAS_NO_WRITE_ACCESSOR_IN_RESULTTYPE;
+                        args = new Object[] {
+                            targetName,
+                            resultTypeToMap.describe()
+                        };
+                    }
+                    else {
+                        msg = Message.BEANMAPPING_PROPERTY_HAS_NO_WRITE_ACCESSOR_IN_TYPE;
+                        args = new Object[] {
+                            targetPropertyName,
+                            resultTypeToMap.describe(),
+                            targetName
+                        };
+                    }
+                    ctx.getMessager()
+                        .printMessage(
+                            method.getExecutable(),
+                            //mapping.getElement(),
+                            //mapping.getMirror(),
+                            //mapping.getTargetAnnotationValue(),
+                            msg,
+                            args
+                        );
+                    errorOccurred = true;
+                }
+                else {
+                    handledTargets.add( targetPropertyName );
+                    Type targetType = ctx.getTypeFactory().getType( targetWriteAccessor.getAccessedType() );
+                    List<Parameter> parameters = method.getParameters();
+                    MappingReferences targetMappingReferences = new MappingReferences( entry.getValue(), false );
+                    ForgedMethod forgedMethod = ForgedMethod.forNestedTarget(
+                        "TBD",
+                        targetType,
+                        parameters,
+                        method,
+                        null,
+                        targetMappingReferences
+                    );
+                    BeanMappingMethod beanMappingMethod = new BeanMappingMethod.Builder()
+                        .mappingContext( ctx )
+                        .forgedMethod( forgedMethod )
+                        .returnTypeBuilder( ctx.getTypeFactory().builderTypeFor( targetType, null ) )
+                        .build();
+
+                    if ( beanMappingMethod != null ) {
+
+                    }
+                }
+
+
+            }
+
 
             // remove the remaining name based properties
             for ( String handledTarget : handledTargets ) {

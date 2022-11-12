@@ -98,6 +98,31 @@ public class ForgedMethod implements Method {
     }
 
     /**
+     * Creates a new forged method for mapping a nested target property
+     *
+     * @param name the (unique name) for this method
+     * @param sourceType the source type
+     * @param returnType the return type.
+     * @param parameters other parameters (including the context + @MappingTarget
+     * @param basedOn the method that (originally) triggered this nested method generation.
+     * @param history a parent forged method if this is a forged method within a forged method
+     * @param mappingReferences the mapping options for this method
+     * @return a new forge method
+     */
+    public static ForgedMethod forNestedTarget(String name, Type returnType,
+                                                  List<Parameter> parameters, Method basedOn,
+                                                  ForgedMethodHistory history, MappingReferences mappingReferences) {
+        return new ForgedMethod(
+            name,
+            returnType,
+            parameters,
+            basedOn,
+            history,
+            mappingReferences == null ? MappingReferences.empty() : mappingReferences
+        );
+    }
+
+    /**
      * Creates a new forged method for mapping a collection element, map key/value or stream element
      *
      * @param name the (unique name) for this method
@@ -184,6 +209,28 @@ public class ForgedMethod implements Method {
         this.history = history;
         this.mappingReferences = mappingReferences;
         this.forgedNameBased = forgedNameBased;
+
+        this.options = MappingMethodOptions.getForgedMethodInheritedOptions( basedOn.getOptions() );
+    }
+
+    private ForgedMethod(String name, Type returnType, List<Parameter> parameters,
+                         Method basedOn, ForgedMethodHistory history, MappingReferences mappingReferences) {
+
+        // establish parameters
+        this.parameters = parameters;
+        this.sourceParameters = Parameter.getSourceParameters( parameters );
+        this.contextParameters = Parameter.getContextParameters( parameters );
+        this.mappingTargetParameter = Parameter.getMappingTargetParameter( parameters );
+        this.returnType = returnType;
+        this.thrownTypes = basedOn.getThrownTypes();
+
+        // based on method
+        this.basedOn = basedOn;
+
+        this.name = Strings.sanitizeIdentifierName( name );
+        this.history = history;
+        this.mappingReferences = mappingReferences;
+        this.forgedNameBased = false;
 
         this.options = MappingMethodOptions.getForgedMethodInheritedOptions( basedOn.getOptions() );
     }
