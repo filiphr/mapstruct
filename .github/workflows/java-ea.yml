@@ -22,4 +22,4 @@ jobs:
           website: jdk.java.net
           release: EA
       - name: 'Test'
-        run: ./mvnw ${MAVEN_ARGS} -Djacoco.skip=true install -DskipDistribution=true
+        run: ./mvnw ${MAVEN_ARGS} -Dorg.springframework.version=6.1.12 -Djacoco.skip=true install -DskipDistribution=true
