@@ -15,7 +15,6 @@ import org.mapstruct.ap.testutil.ProcessorTest;
 import org.mapstruct.ap.testutil.WithClasses;
 import org.mapstruct.ap.testutil.WithJakartaInject;
 import org.mapstruct.ap.testutil.runner.GeneratedSource;
-import org.springframework.context.annotation.Configuration;
 
 import static java.lang.System.lineSeparator;
 
@@ -32,7 +31,6 @@ import static java.lang.System.lineSeparator;
     SetterJakartaConfig.class
 })
 @IssueKey("3229")
-@Configuration
 @WithJakartaInject
 public class JakartaSetterMapperTest {
 
