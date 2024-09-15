@@ -38,12 +38,23 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.1</version>
                 <configuration>
                     <compilerArgs>
                         <compilerArg>-XprintProcessorInfo</compilerArg>
                         <compilerArg>-XprintRounds</compilerArg>
                     </compilerArgs>
+                    <annotationProcessorPaths>
+                        <annotationProcessorPath>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </annotationProcessorPath>
+                        <annotationProcessorPath>
+                            <groupId>org.mapstruct.itest</groupId>
+                            <artifactId>itest-targettypegeneration-generator</artifactId>
+                            <version>1.0.0</version>
+                        </annotationProcessorPath>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>

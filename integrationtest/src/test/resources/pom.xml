@@ -45,6 +45,9 @@
                             <compilerArgument
                                 combine.self="override"></compilerArgument>
                             <compilerId>\${compiler-id}</compilerId>
+                            <compilerArgs>
+                                <compilerArg>-proc:full</compilerArg>
+                            </compilerArgs>
                         </configuration>
                         <dependencies>
                             <dependency>

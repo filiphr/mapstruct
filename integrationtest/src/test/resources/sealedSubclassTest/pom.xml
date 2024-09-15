@@ -34,7 +34,10 @@
                             <compilerArgument
                                     combine.self="override"></compilerArgument>
                             <compilerId>\${compiler-id}</compilerId>
-                            <compilerArgs>--enable-preview</compilerArgs>
+                            <compilerArgs>
+                                <compilerArg>--enable-preview</compilerArg>
+                                <compilerArg>-proc:full</compilerArg>
+                            </compilerArgs>
                         </configuration>
                         <dependencies>
                             <dependency>
@@ -72,6 +75,7 @@
                                     <fork>true</fork>
                                     <compilerArgs>
                                         <arg>--enable-preview</arg>
+                                        <arg>-proc:full</arg>
                                         <arg>-J-Xdebug</arg>
                                         <arg>-J-Xnoagent</arg>
                                         <arg>-J-Djava.compiler=NONE</arg>

@@ -5,6 +5,7 @@
  */
 package org.mapstruct.itest.tests;
 
+import org.junit.jupiter.api.condition.DisabledOnJre;
 import org.junit.jupiter.api.condition.EnabledForJreRange;
 import org.junit.jupiter.api.condition.JRE;
 import org.junit.jupiter.api.parallel.Execution;
@@ -80,6 +81,7 @@ public class MavenIntegrationTest {
     }
 
     @ProcessorTest(baseDir = "jsr330Test")
+    @DisabledOnJre( JRE.OTHER )
     void jsr330Test() {
     }
 
@@ -163,6 +165,7 @@ public class MavenIntegrationTest {
     }
 
     @ProcessorTest(baseDir = "springTest")
+    @DisabledOnJre( JRE.OTHER )
     void springTest() {
     }
 

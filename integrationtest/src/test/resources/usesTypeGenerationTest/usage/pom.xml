@@ -44,6 +44,18 @@
                         <compilerArg>-XprintRounds</compilerArg>
                     </compilerArgs>
                     <testCompilerArgument>-proc:none</testCompilerArgument>
+                    <annotationProcessorPaths>
+                        <annotationProcessorPath>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </annotationProcessorPath>
+                        <annotationProcessorPath>
+                            <groupId>org.mapstruct.itest</groupId>
+                            <artifactId>itest-usestypegeneration-generator</artifactId>
+                            <version>1.0.0</version>
+                        </annotationProcessorPath>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
