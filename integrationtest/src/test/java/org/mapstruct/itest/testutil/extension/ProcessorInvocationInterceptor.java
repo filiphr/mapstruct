@@ -83,6 +83,7 @@ public class ProcessorInvocationInterceptor implements InvocationInterceptor {
         try {
             configureProcessor( verifier );
 
+            verifier.addCliOption( "-Ddevelocity.enabled=false" );
             verifier.addCliOption( "-Dcompiler-source-target-version=" + sourceTargetVersion() );
 
             if ( Boolean.getBoolean( SYS_PROP_DEBUG ) ) {
