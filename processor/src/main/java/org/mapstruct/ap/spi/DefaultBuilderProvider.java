@@ -9,10 +9,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
@@ -29,7 +27,7 @@ import javax.lang.model.util.Types;
 
 /**
  * Default implementation of {@link BuilderProvider}.
- * <p>
+ *
  * The default builder provider considers all public static parameterless methods of a {@link TypeMirror}
  * as potential builder creation methods. For each potential builder creation method checks in the return type
  * of the method if there exists a method that returns the initial {@link TypeMirror} if such a combination is found
@@ -51,7 +49,7 @@ import javax.lang.model.util.Types;
  *     public static Builder builder() {
  *         return new Builder();
  *     }
- *
+
  *     public static class Builder {
  *
  *         private String firstName;
@@ -67,7 +65,7 @@ import javax.lang.model.util.Types;
  *     }
  * }
  * </code></pre>
- * <p>
+ *
  * In the example above, when searching for a builder for the {@code Person} type. The {@code Person#builder} method
  * would be a builder creation candidate. Then the return type of {@code Person#builder}, {@code Builder}, is
  * investigated for a parameterless method that returns {@code Person}. When {@code Builder#create} is found
@@ -105,8 +103,10 @@ public class DefaultBuilderProvider implements BuilderProvider {
      * Find the {@link TypeElement} for the given {@link TypeMirror}.
      *
      * @param type for which the {@link TypeElement} needs to be found/
+     *
      * @return the type element or {@code null} if the {@link TypeMirror} is not a {@link DeclaredType}
      * and the declared type element is not {@link TypeElement}
+     *
      * @throws TypeHierarchyErroneousException if the {@link TypeMirror} is of kind {@link TypeKind#ERROR}
      */
     protected TypeElement getTypeElement(TypeMirror type) {
@@ -186,82 +186,96 @@ public class DefaultBuilderProvider implements BuilderProvider {
             return null;
         }
 
-        BuilderInfo staticFactoryMethodBuilderInfo = findStaticFactoryMethodBuilderInfo( typeElement );
-        if ( staticFactoryMethodBuilderInfo != null ) {
-            return staticFactoryMethodBuilderInfo;
+        // Builder infos which are determined by a static method on the type itself
+        List<BuilderInfo> methodBuilderInfos = new ArrayList<>();
+        // Builder infos which are determined by an inner builder class in the type itself
+        List<BuilderInfo> innerClassBuilderInfos = new ArrayList<>();
+
+        for ( Element enclosedElement : typeElement.getEnclosedElements() ) {
+            if ( ElementKind.METHOD == enclosedElement.getKind() ) {
+                ExecutableElement method = (ExecutableElement) enclosedElement;
+                BuilderInfo builderInfo = determineMethodBuilderInfo( method, typeElement );
+                if ( builderInfo != null ) {
+                    methodBuilderInfos.add( builderInfo );
+                }
+            }
+            else if ( ElementKind.CLASS == enclosedElement.getKind() ) {
+                if ( !methodBuilderInfos.isEmpty() ) {
+                    // Small optimization to not check the inner classes
+                    // if we already have at least one builder through a method
+                    continue;
+                }
+                TypeElement classElement = (TypeElement) enclosedElement;
+                BuilderInfo builderInfo = determineInnerClassBuilderInfo( classElement, typeElement );
+                if ( builderInfo != null ) {
+                    innerClassBuilderInfos.add( builderInfo );
+                }
+            }
+
         }
 
-        BuilderInfo innerBuilderClassBuilderInfo = findInnerBuilderClassBuilderInfo( typeElement );
-        if ( innerBuilderClassBuilderInfo != null ) {
-            return innerBuilderClassBuilderInfo;
+        if ( methodBuilderInfos.size() == 1 ) {
+            return methodBuilderInfos.get( 0 );
+        }
+        else if ( methodBuilderInfos.size() > 1 ) {
+            throw new MoreThanOneBuilderCreationMethodException( typeElement.asType(), methodBuilderInfos );
+        }
+        else if ( innerClassBuilderInfos.size() == 1 ) {
+            return innerClassBuilderInfos.get( 0 );
+        }
+        else if ( innerClassBuilderInfos.size() > 1 ) {
+            throw new MoreThanOneBuilderCreationMethodException( typeElement.asType(), innerClassBuilderInfos );
         }
 
         if ( checkParent ) {
             return findBuilderInfo( typeElement.getSuperclass() );
         }
+
         return null;
     }
 
-    private BuilderInfo findStaticFactoryMethodBuilderInfo(TypeElement typeElement) {
-        List<ExecutableElement> methods = ElementFilter.methodsIn( typeElement.getEnclosedElements() );
-        List<BuilderInfo> builderInfo = new ArrayList<>();
-        for ( ExecutableElement method : methods ) {
-            if ( isPossibleBuilderCreationMethod( method, typeElement ) ) {
-                TypeElement builderElement = getTypeElement( method.getReturnType() );
-                Collection<ExecutableElement> buildMethods = findBuildMethods( builderElement, typeElement );
-                if ( !buildMethods.isEmpty() ) {
-                    builderInfo.add( new BuilderInfo.Builder()
-                        .builderCreationMethod( method )
-                        .buildMethod( buildMethods )
-                        .build()
-                    );
+    private BuilderInfo determineMethodBuilderInfo(ExecutableElement method,
+                                                   TypeElement typeElement) {
+        if ( isPossibleBuilderCreationMethod( method, typeElement ) ) {
+            TypeElement builderElement = getTypeElement( method.getReturnType() );
+            Collection<ExecutableElement> buildMethods = findBuildMethods( builderElement, typeElement );
+            if ( !buildMethods.isEmpty() ) {
+                return new BuilderInfo.Builder()
+                    .builderCreationMethod( method )
+                    .buildMethod( buildMethods )
+                    .build();
+            }
+        }
+
+        return null;
+    }
+
+    private BuilderInfo determineInnerClassBuilderInfo(TypeElement innerClassElement,
+                                                       TypeElement typeElement) {
+        if ( innerClassElement.getModifiers().contains( Modifier.PUBLIC )
+            && innerClassElement.getModifiers().contains( Modifier.STATIC )
+            && innerClassElement.getSimpleName().toString().endsWith( "Builder" ) ) {
+            for ( Element element : innerClassElement.getEnclosedElements() ) {
+                if ( ElementKind.CONSTRUCTOR == element.getKind() ) {
+                    ExecutableElement constructor = (ExecutableElement) element;
+                    if ( constructor.getParameters().isEmpty() ) {
+                        // We have a no-arg constructor
+                        // Now check if we have build methods
+                        Collection<ExecutableElement> buildMethods = findBuildMethods( innerClassElement, typeElement );
+                        if ( !buildMethods.isEmpty() ) {
+                            return new BuilderInfo.Builder()
+                                .builderCreationMethod( constructor )
+                                .buildMethod( buildMethods )
+                                .build();
+                        }
+                        // If we don't have any build methods
+                        // then we can stop since we are only interested in the no-arg constructor
+                        return null;
+                    }
                 }
             }
         }
 
-        if ( builderInfo.size() == 1 ) {
-            return builderInfo.get( 0 );
-        }
-        else if ( builderInfo.size() > 1 ) {
-            throw new MoreThanOneBuilderCreationMethodException( typeElement.asType(), builderInfo );
-        }
-        return null;
-    }
-
-    private BuilderInfo findInnerBuilderClassBuilderInfo(TypeElement typeElement) {
-        List<BuilderInfo> builderInfos = typeElement.getEnclosedElements().stream()
-            .filter( element -> ElementKind.CLASS.equals( element.getKind() ) )
-            .map( TypeElement.class::cast )
-            .filter( classElement -> classElement.getModifiers().contains( Modifier.PUBLIC )
-                && classElement.getModifiers().contains( Modifier.STATIC ) )
-            .filter( classElement -> classElement.getSimpleName().toString().endsWith( "Builder" ) )
-            .flatMap( builderElement -> {
-                Optional<ExecutableElement> noArgConstructor = ElementFilter.constructorsIn(
-                        builderElement.getEnclosedElements()
-                    ).stream()
-                    .filter( executableElement -> executableElement.getParameters().isEmpty() )
-                    .findAny();
-                if ( !noArgConstructor.isPresent() ) {
-                    return Stream.empty();
-                }
-                Collection<ExecutableElement> buildMethods = findBuildMethods( builderElement, typeElement );
-                if ( buildMethods.isEmpty() ) {
-                    return Stream.empty();
-                }
-                return Stream.of( new BuilderInfo.Builder()
-                    .builderCreationMethod( noArgConstructor.get() )
-                    .buildMethod( buildMethods )
-                    .build() );
-            } )
-            .collect( Collectors.toList() );
-
-        if ( builderInfos.size() > 1 ) {
-            throw new MoreThanOneBuilderCreationMethodException( typeElement.asType(), builderInfos );
-        }
-
-        if ( builderInfos.size() == 1 ) {
-            return builderInfos.get( 0 );
-        }
         return null;
     }
 
@@ -276,7 +290,7 @@ public class DefaultBuilderProvider implements BuilderProvider {
      * <li></li>
      * </ul>
      *
-     * @param method      The method that needs to be checked
+     * @param method The method that needs to be checked
      * @param typeElement the enclosing element of the method, i.e. the type in which the method is located in
      * @return {@code true} if the {@code method} is a possible builder creation method, {@code false} otherwise
      */
@@ -304,9 +318,8 @@ public class DefaultBuilderProvider implements BuilderProvider {
      * The default implementation uses {@link DefaultBuilderProvider#shouldIgnore(TypeElement)} to check if the
      * {@code builderElement} should be ignored, i.e. not checked for build elements.
      * <p>
-     *
      * @param builderElement the element for the builder
-     * @param typeElement    the element for the type that is being built
+     * @param typeElement the element for the type that is being built
      * @return the build method for the {@code typeElement} if it exists, or {@code null} if it does not
      * {@code build}
      */
@@ -416,7 +429,6 @@ public class DefaultBuilderProvider implements BuilderProvider {
      * <p>
      * The default implementations ignores {@code null} elements and elements that belong to the {@code java} and
      * {@code javax} packages
-     *
      * @param typeElement that needs to be checked
      * @return {@code true} if the element should be ignored, {@code false} otherwise
      */

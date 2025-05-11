@@ -8,6 +8,7 @@ package org.mapstruct.ap.test.builder.simple.innerclass;
 import java.util.Arrays;
 
 import org.junit.jupiter.api.extension.RegisterExtension;
+import org.mapstruct.ap.test.builder.simple.SimpleMutablePerson;
 import org.mapstruct.ap.testutil.ProcessorTest;
 import org.mapstruct.ap.testutil.WithClasses;
 import org.mapstruct.ap.testutil.compilation.annotation.CompilationResult;
@@ -53,7 +54,7 @@ public class SimpleImmutableBuilderThroughInnerClassConstructorTest {
         diagnostics = @Diagnostic(
             kind = javax.tools.Diagnostic.Kind.ERROR,
             type = ErroneousSimpleBuilderMapper.class,
-            line = 21,
+            line = 22,
             message = "Unmapped target property: \"name\"."))
     public void testSimpleImmutableBuilderThroughInnerClassConstructorMissingPropertyFailsToCompile() {
     }

@@ -9,6 +9,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Mappings;
 import org.mapstruct.ReportingPolicy;
+import org.mapstruct.ap.test.builder.simple.SimpleMutablePerson;
 
 @Mapper(unmappedTargetPolicy = ReportingPolicy.ERROR)
 public interface ErroneousSimpleBuilderMapper {
