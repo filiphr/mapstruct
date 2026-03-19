@@ -104,6 +104,14 @@ public class MappingBuilderContext {
         Set<SupportingMappingMethod> getUsedSupportedMappings();
 
         Set<Field> getUsedSupportedFields();
+
+        /**
+         * Returns all supporting elements (methods, fields, and constructor fragments)
+         * accumulated during mapping resolution, bundled as a single result object.
+         *
+         * @return the accumulated supporting elements
+         */
+        SupportingElements getUsedSupportingElements();
     }
 
     private final TypeFactory typeFactory;
@@ -253,6 +261,16 @@ public class MappingBuilderContext {
 
     public Set<Field> getUsedSupportedFields() {
         return mappingResolver.getUsedSupportedFields();
+    }
+
+    /**
+     * Returns all supporting elements (methods, fields, and constructor fragments)
+     * accumulated during mapping resolution, bundled as a single result object.
+     *
+     * @return the accumulated supporting elements
+     */
+    public SupportingElements getUsedSupportingElements() {
+        return mappingResolver.getUsedSupportingElements();
     }
 
     /**

@@ -39,6 +39,10 @@ public class SupportingField extends Field {
         return templateParameter;
     }
 
+    /**
+     * @deprecated This back-reference creates unnecessary coupling. Will be removed in a future version.
+     */
+    @Deprecated
     public SupportingMappingMethod getDefiningMethod() {
         return definingMethod;
     }

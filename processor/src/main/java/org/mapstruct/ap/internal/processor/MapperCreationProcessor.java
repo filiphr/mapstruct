@@ -49,6 +49,7 @@ import org.mapstruct.ap.internal.model.MappingBuilderContext;
 import org.mapstruct.ap.internal.model.MappingMethod;
 import org.mapstruct.ap.internal.model.StreamMappingMethod;
 import org.mapstruct.ap.internal.model.SupportingConstructorFragment;
+import org.mapstruct.ap.internal.model.SupportingElements;
 import org.mapstruct.ap.internal.model.ValueMappingMethod;
 import org.mapstruct.ap.internal.model.common.FormattingParameters;
 import org.mapstruct.ap.internal.model.common.Type;
@@ -71,8 +72,6 @@ import org.mapstruct.ap.internal.version.VersionInformation;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PUBLIC;
 import static javax.lang.model.element.Modifier.STATIC;
-import static org.mapstruct.ap.internal.model.SupportingConstructorFragment.addAllFragmentsIn;
-import static org.mapstruct.ap.internal.model.SupportingField.addAllFieldsIn;
 import static org.mapstruct.ap.internal.util.Collections.first;
 import static org.mapstruct.ap.internal.util.Collections.join;
 
@@ -187,18 +186,16 @@ public class MapperCreationProcessor implements ModelElementProcessor<List<Sourc
     private Mapper getMapper(TypeElement element, MapperOptions mapperOptions, List<SourceMethod> methods) {
 
         List<MappingMethod> mappingMethods = getMappingMethods( mapperOptions, methods );
-        mappingMethods.addAll( mappingContext.getUsedSupportedMappings() );
         mappingMethods.addAll( mappingContext.getMappingsToGenerate() );
 
-        // handle fields
-        List<Field> fields = new ArrayList<>( mappingContext.getMapperReferences() );
-        Set<Field> supportingFieldSet = new LinkedHashSet<>(mappingContext.getUsedSupportedFields());
-        addAllFieldsIn( mappingContext.getUsedSupportedMappings(), supportingFieldSet );
-        fields.addAll( supportingFieldSet );
+        // collect all supporting elements (methods, fields, constructor fragments) in one step
+        SupportingElements supportingElements = mappingContext.getUsedSupportingElements();
+        mappingMethods.addAll( supportingElements.getMethods() );
 
-        // handle constructor fragments
-        Set<SupportingConstructorFragment> constructorFragments = new LinkedHashSet<>();
-        addAllFragmentsIn( mappingContext.getUsedSupportedMappings(), constructorFragments );
+        List<Field> fields = new ArrayList<>( mappingContext.getMapperReferences() );
+        fields.addAll( supportingElements.getFields() );
+
+        Set<SupportingConstructorFragment> constructorFragments = supportingElements.getConstructorFragments();
 
         Mapper mapper = new Mapper.Builder()
             .element( element )

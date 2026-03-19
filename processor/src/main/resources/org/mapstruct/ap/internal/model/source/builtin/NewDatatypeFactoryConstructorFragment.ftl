@@ -7,8 +7,8 @@
 -->
 <#-- @ftlvariable name="" type="org.mapstruct.ap.internal.model.SupportingConstructorFragment" -->
 try {
-     ${definingMethod.supportingField.variableName} = <@includeModel object=definingMethod.supportingField.type/>.newInstance();
+     ${supportingField.variableName} = <@includeModel object=supportingField.type/>.newInstance();
 }
-catch ( <@includeModel object=definingMethod.findType("DatatypeConfigurationException")/> ex ) {
+catch ( <@includeModel object=findType("DatatypeConfigurationException")/> ex ) {
     throw new RuntimeException( ex );
 }

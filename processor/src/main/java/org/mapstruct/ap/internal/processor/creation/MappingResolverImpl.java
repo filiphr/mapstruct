@@ -42,6 +42,7 @@ import org.mapstruct.ap.internal.model.HelperMethod;
 import org.mapstruct.ap.internal.model.MapperReference;
 import org.mapstruct.ap.internal.model.MappingBuilderContext.MappingResolver;
 import org.mapstruct.ap.internal.model.MethodReference;
+import org.mapstruct.ap.internal.model.SupportingElements;
 import org.mapstruct.ap.internal.model.SupportingField;
 import org.mapstruct.ap.internal.model.SupportingMappingMethod;
 import org.mapstruct.ap.internal.model.common.Assignment;
@@ -156,6 +157,11 @@ public class MappingResolverImpl implements MappingResolver {
         return usedSupportedFields;
     }
 
+    @Override
+    public SupportingElements getUsedSupportingElements() {
+        return SupportingElements.fromMappings( usedSupportedMappings, usedSupportedFields );
+    }
+
     private MapperReference findMapperReference(Method method) {
         for ( MapperReference ref : mapperReferences ) {
             if ( ref.getType().equals( method.getDeclaringMapper() ) ) {
@@ -181,9 +187,10 @@ public class MappingResolverImpl implements MappingResolver {
         private final FormattingMessager messager;
         private final int reportingLimitAmbiguous;
 
-        // resolving via 2 steps creates the possibility of wrong matches, first builtin method matches,
-        // second doesn't. In that case, the first builtin method should not lead to a supported method
-        // so this set must be cleared.
+        // Resolving via 2 steps creates the possibility of wrong matches: the first built-in method matches,
+        // but the second doesn't. In that case, the first built-in method should not lead to a supported method.
+        // Candidates are only promoted to usedSupportedMappings upon successful resolution via
+        // commitSupportingMethodCandidates().
         private final Set<SupportingMappingMethod> supportingMethodCandidates;
 
         // CHECKSTYLE:OFF
@@ -210,6 +217,15 @@ public class MappingResolverImpl implements MappingResolver {
             this.methods = filterPossibleCandidateMethods( sourceModel, mappingMethod );
         }
         // CHECKSTYLE:ON
+
+        /**
+         * Promotes all supporting method candidates to the parent's usedSupportedMappings set.
+         * This should only be called after a successful resolution to avoid committing candidates
+         * from failed two-step resolution attempts.
+         */
+        private void commitSupportingMethodCandidates() {
+            usedSupportedMappings.addAll( supportingMethodCandidates );
+        }
 
         private <T extends Method> List<T> filterPossibleCandidateMethods(List<T> candidateMethods, T mappingMethod) {
             List<T> result = new ArrayList<>( candidateMethods.size() );
@@ -281,7 +297,7 @@ public class MappingResolverImpl implements MappingResolver {
                     if ( !matches.isEmpty() ) {
                         assignment = toBuildInRef( first( matches ) );
                         assignment.setAssignment( sourceRHS );
-                        usedSupportedMappings.addAll( supportingMethodCandidates );
+                        commitSupportingMethodCandidates();
                         return assignment;
                     }
                 }
@@ -291,7 +307,7 @@ public class MappingResolverImpl implements MappingResolver {
                 // 2 step method, first: method(method(source))
                 assignment = MethodMethod.getBestMatch( this, sourceType, targetType );
                 if ( assignment != null ) {
-                    usedSupportedMappings.addAll( supportingMethodCandidates );
+                    commitSupportingMethodCandidates();
                     return assignment;
                 }
 
@@ -299,7 +315,7 @@ public class MappingResolverImpl implements MappingResolver {
                 if ( allowConversion() ) {
                     assignment = ConversionMethod.getBestMatch( this, sourceType, targetType );
                     if ( assignment != null ) {
-                        usedSupportedMappings.addAll( supportingMethodCandidates );
+                        commitSupportingMethodCandidates();
                         return assignment;
                     }
                 }
@@ -311,7 +327,7 @@ public class MappingResolverImpl implements MappingResolver {
                 if ( allowConversion() ) {
                     assignment = MethodConversion.getBestMatch( this, sourceType, targetType );
                     if ( assignment != null ) {
-                        usedSupportedMappings.addAll( supportingMethodCandidates );
+                        commitSupportingMethodCandidates();
                         return assignment;
                     }
                 }
