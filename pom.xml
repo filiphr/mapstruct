@@ -86,5 +86,15 @@
                 <module>integrationtest</module>
             </modules>
         </profile>
+        <!--
+            Spike: KSP-backed Kotlin support. Opt-in only; not part of the default build or the
+            published distribution. Enable with: mvn -Pksp-spike ...
+        -->
+        <profile>
+            <id>ksp-spike</id>
+            <modules>
+                <module>mapstruct-ksp-spike</module>
+            </modules>
+        </profile>
     </profiles>
 </project>
