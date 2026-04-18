@@ -28,6 +28,7 @@
     <properties>
         <minimum.java.version>21</minimum.java.version>
         <ksp.version>2.3.6</ksp.version>
+        <javapoet.version>0.14.0</javapoet.version>
     </properties>
 
     <dependencies>
@@ -39,6 +40,11 @@
             <groupId>com.google.devtools.ksp</groupId>
             <artifactId>symbol-processing-api</artifactId>
             <version>${ksp.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.palantir.javapoet</groupId>
+            <artifactId>javapoet</artifactId>
+            <version>${javapoet.version}</version>
         </dependency>
 
         <!-- Tests -->

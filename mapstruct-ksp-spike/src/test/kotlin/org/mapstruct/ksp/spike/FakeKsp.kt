@@ -57,9 +57,13 @@ internal object FakeKsp {
         parent: KSClassDeclaration? = null
     ): KSClassDeclaration {
         val simple = fqn.substringAfterLast('.')
+        // For non-nested classes, everything before the last '.' is the package. Good enough for
+        // the spike — true nested-class support requires walking parentDeclaration up to a top-level.
+        val pkg = if (parent != null) "" else fqn.substringBeforeLast('.', "")
         return proxy(KSClassDeclaration::class, mapOf(
             "getQualifiedName" to { ksName(fqn) },
             "getSimpleName" to { ksName(simple) },
+            "getPackageName" to { ksName(pkg) },
             "getClassKind" to { kind },
             "getParentDeclaration" to { parent }
         ))

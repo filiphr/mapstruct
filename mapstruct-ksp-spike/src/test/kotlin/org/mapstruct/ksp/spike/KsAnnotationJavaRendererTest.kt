@@ -38,8 +38,11 @@ class KsAnnotationJavaRendererTest {
         val out = renderer.render(
             ksAnnotation("org.mapstruct.Mapping", listOf("target" to "full\"name\nwith\\slashes"))
         )
+        // JavaPoet splits strings containing embedded newlines across concatenated literals.
+        // Both forms are equivalent Java; this matches JavaPoet's canonical `$S` output.
         assertThat(out).isEqualTo(
-            """@org.mapstruct.Mapping(target = "full\"name\nwith\\slashes")"""
+            "@org.mapstruct.Mapping(target = \"full\\\"name\\n\"\n" +
+                "            + \"with\\\\slashes\")"
         )
     }
 
@@ -118,9 +121,10 @@ class KsAnnotationJavaRendererTest {
                 )
             )
         )
+        // JavaPoet applies Java's `value`-shortcut: @Named("trim") instead of @Named(value = "trim").
         assertThat(out).isEqualTo(
             """@org.mapstruct.Mapping(target = "name", source = "fullName", """ +
-                """qualifiedBy = @com.example.Named(value = "trim"))"""
+                """qualifiedBy = @com.example.Named("trim"))"""
         )
     }
 
@@ -198,8 +202,9 @@ class KsAnnotationJavaRendererTest {
                 )
             )
         )
+        // JavaPoet applies Java's `value`-shortcut for a single `value` member.
         assertThat(out).isEqualTo(
-            """@org.mapstruct.Mappings(value = { """ +
+            """@org.mapstruct.Mappings({ """ +
                 """@org.mapstruct.Mapping(target = "a", source = "x"), """ +
                 """@org.mapstruct.Mapping(target = "b", source = "y") })"""
         )
