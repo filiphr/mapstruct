@@ -95,14 +95,20 @@ internal object FakeKsp {
         ))
     }
 
-    /** A [KSType] value suitable for a `Foo::class` annotation argument. */
+    /**
+     * A [KSType] value suitable for a `Foo::class` annotation argument — class literals come
+     * through wrapped in a KSType in the real KSP impl.
+     */
     fun classLiteral(fqn: String, kind: ClassKind = ClassKind.CLASS): KSType =
         ksType(ksClassDecl(fqn, kind))
 
-    /** A [KSType] value suitable for an enum-entry annotation argument (e.g. `Policy.WARN`). */
-    fun enumEntry(enumFqn: String, entryName: String): KSType {
+    /**
+     * Real KSP delivers an enum-entry annotation argument (e.g. `Policy.WARN`) as a
+     * [KSClassDeclaration] directly — *not* wrapped in a KSType. Match that shape so unit tests
+     * remain representative of what the live processor will receive.
+     */
+    fun enumEntry(enumFqn: String, entryName: String): KSClassDeclaration {
         val enumDecl = ksClassDecl(enumFqn, ClassKind.ENUM_CLASS)
-        val entry = ksClassDecl("$enumFqn.$entryName", ClassKind.ENUM_ENTRY, parent = enumDecl)
-        return ksType(entry)
+        return ksClassDecl("$enumFqn.$entryName", ClassKind.ENUM_ENTRY, parent = enumDecl)
     }
 }

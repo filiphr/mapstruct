@@ -58,6 +58,9 @@ class KsAnnotationJavaRenderer {
         is Double -> CodeBlock.of("\$L", "${value}d")
         is Char -> CodeBlock.of("\$L", "'${escapeCharLiteral(value)}'")
         is KSType -> renderTypeValue(value)
+        // Real KSP delivers enum entries (and sometimes class literals) directly as KSClassDeclaration.
+        // The KSP API contract: `KSValueArgument.value` may be a KSType *or* a KSClassDeclaration.
+        is KSClassDeclaration -> renderClassDeclValue(value)
         is KSAnnotation -> CodeBlock.of("\$L", toAnnotationSpec(value))
         is List<*> -> renderArray(value)
         is Array<*> -> renderArray(value.toList())
@@ -93,14 +96,16 @@ class KsAnnotationJavaRenderer {
     private fun renderTypeValue(type: KSType): CodeBlock {
         val decl = type.declaration as? KSClassDeclaration
             ?: error("Unsupported type declaration: ${type.declaration}")
-        return when (decl.classKind) {
-            ClassKind.ENUM_ENTRY -> {
-                val enumDecl = decl.parentDeclaration as? KSClassDeclaration
-                    ?: error("Enum entry without enclosing enum: $decl")
-                CodeBlock.of("\$T.\$L", classNameOf(enumDecl), decl.simpleName.asString())
-            }
-            else -> CodeBlock.of("\$T.class", classNameOf(decl))
+        return renderClassDeclValue(decl)
+    }
+
+    private fun renderClassDeclValue(decl: KSClassDeclaration): CodeBlock = when (decl.classKind) {
+        ClassKind.ENUM_ENTRY -> {
+            val enumDecl = decl.parentDeclaration as? KSClassDeclaration
+                ?: error("Enum entry without enclosing enum: $decl")
+            CodeBlock.of("\$T.\$L", classNameOf(enumDecl), decl.simpleName.asString())
         }
+        else -> CodeBlock.of("\$T.class", classNameOf(decl))
     }
 
     /**
