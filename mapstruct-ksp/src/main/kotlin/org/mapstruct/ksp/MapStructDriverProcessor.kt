@@ -18,8 +18,10 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Modifier as KSModifier
+import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.validate
 import com.palantir.javapoet.AnnotationSpec
@@ -164,13 +166,19 @@ class MapStructDriverProcessor(
 
         val returnType = fn.returnType?.resolve()
             ?: error("Cannot resolve return type of ${fn.qualifiedName?.asString()}")
-        builder.returns(typeTranslator.toReturnTypeName(returnType))
+        val returnTypeName = typeTranslator.toReturnTypeName(returnType)
+        builder.returns(returnTypeName)
+        // Return-type nullability annotation is placed on the method (matches what kotlinc emits
+        // for Kotlin methods at the JVM level). Skip for `void` and primitives.
+        nullabilityAnnotation(returnType, returnTypeName)?.let { builder.addAnnotation(it) }
 
         fn.parameters.forEach { p ->
             val pname = p.name?.asString()
                 ?: error("Unnamed parameter in ${fn.qualifiedName?.asString()}")
             val ptype = p.type.resolve()
-            val ps = ParameterSpec.builder(typeTranslator.toTypeName(ptype), pname)
+            val ptypeName = typeTranslator.toTypeName(ptype)
+            val ps = ParameterSpec.builder(ptypeName, pname)
+            nullabilityAnnotation(ptype, ptypeName)?.let { ps.addAnnotation(it) }
             p.annotations
                 .filter { isMapStructAnnotation(it) }
                 .forEach { ps.addAnnotation(annotationRenderer.toAnnotationSpec(it)) }
@@ -178,6 +186,39 @@ class MapStructDriverProcessor(
         }
 
         return builder.build()
+    }
+
+    /**
+     * Map a Kotlin [KSType] to its JetBrains nullability annotation, matching what kotlinc
+     * itself emits on compiled JVM signatures:
+     *
+     *   `Nullability.NULLABLE`   → `@org.jetbrains.annotations.Nullable`
+     *   `Nullability.NOT_NULL`   → `@org.jetbrains.annotations.NotNull`
+     *   `Nullability.PLATFORM`   → nothing (unknown — matches kotlinc)
+     *
+     * Returns null for positions where the annotation would be meaningless:
+     *   - Java primitives (cannot be null).
+     *   - `void` returns.
+     *
+     * Picking JetBrains specifically because it's what kotlinc emits, what MapStruct's existing
+     * Kotlin-interop code already expects to see, and what Kotlin's transitive classpath
+     * (via kotlin-stdlib) already provides — so the generated driver compiles without users
+     * needing to add the annotations jar themselves.
+     */
+    private fun nullabilityAnnotation(type: KSType, typeName: TypeName): AnnotationSpec? {
+        if (typeName.isPrimitive || typeName == TypeName.VOID) return null
+        // Bare type-parameter references (`fun <T> foo(t: T)`) report their nullability as
+        // NULLABLE by default (since an unbounded `T : Any?` can hold null). Emitting @Nullable
+        // on such a use is misleading — the caller picks T, not the declaration site. kotlinc
+        // emits nothing for these, so we skip them too.
+        if (typeName is TypeVariableName) return null
+        val annotationType = when (type.nullability) {
+            Nullability.NULLABLE -> NULLABLE
+            Nullability.NOT_NULL -> NOT_NULL
+            Nullability.PLATFORM -> return null
+            else -> return null
+        }
+        return AnnotationSpec.builder(annotationType).build()
     }
 
     /**
@@ -223,7 +264,10 @@ class MapStructDriverProcessor(
             val pname = p.name?.asString()
                 ?: error("Unnamed constructor parameter in ${mapper.qualifiedName?.asString()}")
             val ptype = p.type.resolve()
-            ctor.addParameter(typeTranslator.toTypeName(ptype), pname)
+            val ptypeName = typeTranslator.toTypeName(ptype)
+            val ps = ParameterSpec.builder(ptypeName, pname)
+            nullabilityAnnotation(ptype, ptypeName)?.let { ps.addAnnotation(it) }
+            ctor.addParameter(ps.build())
             paramNames.add(pname)
         }
         val placeholders = paramNames.joinToString(", ") { "\$L" }
@@ -310,6 +354,11 @@ class MapStructDriverProcessor(
          */
         const val DRIVER_SUFFIX = "Driver"
         private const val IMPLEMENTATION_NAME_MEMBER = "implementationName"
+
+        // Referenced as string-only so this module doesn't need the annotations jar on its
+        // compile classpath. Users' projects get the annotations transitively via kotlin-stdlib.
+        private val NULLABLE = ClassName.get("org.jetbrains.annotations", "Nullable")
+        private val NOT_NULL = ClassName.get("org.jetbrains.annotations", "NotNull")
     }
 }
 

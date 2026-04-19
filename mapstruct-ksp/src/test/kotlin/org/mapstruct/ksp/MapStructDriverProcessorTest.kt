@@ -67,7 +67,7 @@ class MapStructDriverProcessorTest {
             .contains("@Mapping")
             .contains("target = \"fullName\"")
             .contains("source = \"name\"")
-            .contains("UserDto toDto(User user)")
+            .contains("UserDto toDto(@NotNull User user)")
     }
 
     @Test
@@ -104,8 +104,8 @@ class MapStructDriverProcessorTest {
         val driver = result.findGenerated("shop/OrderMapperDriver.java")
         assertThat(driver)
             .contains("interface OrderMapperDriver extends OrderMapper")
-            .contains("OrderDto toDto(Order order)")
-            .contains("Order toEntity(OrderDto dto)")
+            .contains("OrderDto toDto(@NotNull Order order)")
+            .contains("Order toEntity(@NotNull OrderDto dto)")
             .contains("@Mappings")
             .contains("target = \"orderId\"")
             .contains("target = \"customer\"")
@@ -262,6 +262,99 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
+    @DisplayName("JetBrains @Nullable / @NotNull are emitted at parameter and return-type positions")
+    fun jetbrainsNullabilityAnnotations() {
+        val result = compile(
+            SourceFile.kotlin(
+                "NullAnno.kt",
+                """
+                package nla
+
+                import org.mapstruct.Mapper
+
+                data class Src(val v: String)
+                data class Tgt(val v: String)
+
+                @Mapper
+                interface NullAnno {
+                    fun mapBoth(src: Src): Tgt
+                    fun mapNullable(src: Src?): Tgt?
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("nla/NullAnnoDriver.java")
+        assertThat(driver)
+            .contains("import org.jetbrains.annotations.NotNull")
+            .contains("import org.jetbrains.annotations.Nullable")
+            // Non-null param + return — @NotNull on parameter and on the method itself.
+            .contains("@NotNull")
+            .contains("mapBoth(@NotNull Src src)")
+            // Nullable counterpart.
+            .contains("mapNullable(@Nullable Src src)")
+            .contains("@Nullable")
+    }
+
+    @Test
+    @DisplayName("primitives never receive null annotations (they can't be null by construction)")
+    fun primitivesAreNotAnnotated() {
+        val result = compile(
+            SourceFile.kotlin(
+                "Prim.kt",
+                """
+                package nla
+
+                import org.mapstruct.Mapper
+
+                data class Src(val v: String)
+
+                @Mapper
+                interface Prim {
+                    fun count(s: Src): Int
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("nla/PrimDriver.java")
+        assertThat(driver)
+            .contains("int count(")
+            .doesNotContain("@NotNull int")
+            .doesNotContain("@Nullable int")
+    }
+
+    @Test
+    @DisplayName("void return is not annotated")
+    fun voidReturnIsNotAnnotated() {
+        val result = compile(
+            SourceFile.kotlin(
+                "Sink.kt",
+                """
+                package nla
+
+                import org.mapstruct.Mapper
+
+                data class Src(val v: String)
+                class Dest
+
+                @Mapper
+                interface Sink {
+                    fun fill(src: Src, dest: Dest)
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("nla/SinkDriver.java")
+        assertThat(driver)
+            .contains("void fill(")
+            // No @NotNull / @Nullable precedes `void`.
+            .doesNotContain("@NotNull void")
+            .doesNotContain("@Nullable void")
+    }
+
+    @Test
     @DisplayName("primitives in generic-argument positions stay boxed (JVM generics can't hold primitives)")
     fun primitivesInGenericsStayBoxed() {
         val result = compile(
@@ -314,7 +407,7 @@ class MapStructDriverProcessorTest {
 
         val driver = result.findGenerated("v/VoidMapperDriver.java")
         assertThat(driver)
-            .contains("void fill(Src src, Sink sink)")
+            .contains("void fill(@NotNull Src src, @NotNull Sink sink)")
     }
 
     @Test
@@ -585,8 +678,11 @@ class MapStructDriverProcessorTest {
 
         val driver = result.findGenerated("gp/MMDriver.java")
         assertThat(driver)
+            // Type-parameter use positions aren't annotated — KSP's Nullability for a bare
+            // type variable reference (declared `<U>` with no bound, meaning `U : Any?`) is not
+            // NOT_NULL, and JetBrains @NotNull on an unbounded type variable is misleading anyway.
             .contains("<U> List<U> wrap(U value)")
-            .contains("B simple(A a)")
+            .contains("B simple(@NotNull A a)")
     }
 
     @Test
@@ -611,7 +707,7 @@ class MapStructDriverProcessorTest {
         val driver = result.findGenerated("gp/GenericAbstractDriver.java")
         assertThat(driver)
             .contains("class GenericAbstractDriver<S, T> extends GenericAbstract<S, T>")
-            .contains("public abstract T map(S s)")
+            .contains("public abstract T map(S s)")  // type-parameter positions stay unannotated
     }
 
     @Test
@@ -642,7 +738,7 @@ class MapStructDriverProcessorTest {
         assertThat(driver)
             .contains("public abstract class AbstractMapperDriver extends AbstractMapper")
             .contains("@Override")
-            .contains("public abstract B toB(A a)")
+            .contains("public abstract B toB(@NotNull A a)")
             .contains("implementationName = \"AbstractMapperImpl\"")
     }
 
@@ -676,7 +772,7 @@ class MapStructDriverProcessorTest {
         val driver = result.findGenerated("ac/InjectableMapperDriver.java")
         assertThat(driver)
             .contains("public abstract class InjectableMapperDriver extends InjectableMapper")
-            .contains("public InjectableMapperDriver(StringHelper strings, DateHelper dates)")
+            .contains("public InjectableMapperDriver(@NotNull StringHelper strings, @NotNull DateHelper dates)")
             .contains("super(strings, dates)")
     }
 
