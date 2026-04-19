@@ -405,11 +405,77 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
-    @DisplayName("@Mapper on a class (not interface) is reported and skipped")
-    fun mapperOnClassReportsError() {
+    @DisplayName("@Mapper on an abstract class produces an abstract driver class extending it")
+    fun abstractClassWithoutCtorArgs() {
         val result = compile(
             SourceFile.kotlin(
-                "ClassMapper.kt",
+                "AbstractMapper.kt",
+                """
+                package ac
+
+                import org.mapstruct.Mapper
+                import org.mapstruct.Mapping
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                abstract class AbstractMapper {
+                    @Mapping(target = "v", source = "v")
+                    abstract fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("ac/AbstractMapperMapStruct.java")
+        assertThat(driver)
+            .contains("public abstract class AbstractMapperMapStruct extends AbstractMapper")
+            .contains("@Override")
+            .contains("public abstract B toB(A a)")
+            .contains("implementationName = \"AbstractMapperImpl\"")
+    }
+
+    @Test
+    @DisplayName("abstract class with primary ctor args gets a forwarding constructor")
+    fun abstractClassWithCtorArgs() {
+        val result = compile(
+            SourceFile.kotlin(
+                "InjectableMapper.kt",
+                """
+                package ac
+
+                import org.mapstruct.Mapper
+
+                class StringHelper
+                class DateHelper
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                abstract class InjectableMapper(
+                    protected val strings: StringHelper,
+                    protected val dates: DateHelper
+                ) {
+                    abstract fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("ac/InjectableMapperMapStruct.java")
+        assertThat(driver)
+            .contains("public abstract class InjectableMapperMapStruct extends InjectableMapper")
+            .contains("public InjectableMapperMapStruct(StringHelper strings, DateHelper dates)")
+            .contains("super(strings, dates)")
+    }
+
+    @Test
+    @DisplayName("@Mapper on a final or `open` class is rejected with a pointed error")
+    fun nonAbstractClassReportsError() {
+        val result = compile(
+            SourceFile.kotlin(
+                "OpenMapper.kt",
                 """
                 package broken
 
@@ -419,16 +485,16 @@ class MapStructDriverProcessorTest {
                 data class B(val v: String)
 
                 @Mapper
-                abstract class ClassMapper {
-                    abstract fun toB(a: A): B
+                open class OpenMapper {
+                    fun toB(a: A): B = B(a.v)
                 }
                 """.trimIndent()
             )
         )
 
         assertThat(result.messages)
-            .contains("only interfaces are supported")
-        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "ClassMapperMapStruct.java" })
+            .contains("only supported on interfaces and abstract classes")
+        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "OpenMapperMapStruct.java" })
             .isFalse()
     }
 

@@ -18,6 +18,7 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.Modifier as KSModifier
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.validate
 import com.palantir.javapoet.AnnotationSpec
@@ -83,38 +84,37 @@ class MapStructDriverProcessor(
     }
 
     private fun generateDriver(mapper: KSClassDeclaration) {
-        if (mapper.classKind != ClassKind.INTERFACE) {
-            logger.error(
-                "mapstruct-ksp: @Mapper on ${mapper.qualifiedName?.asString()} — only interfaces " +
-                    "are supported in this iteration. Abstract-class @Mapper support is TODO.",
-                mapper
-            )
-            return
-        }
+        val shape = resolveShape(mapper) ?: return
         if (mapper.typeParameters.isNotEmpty()) {
             logger.error(
                 "mapstruct-ksp: @Mapper on ${mapper.qualifiedName?.asString()} — generic mapper " +
-                    "interfaces are not supported in this iteration.",
+                    "declarations are not supported in this iteration.",
                 mapper
             )
             return
         }
 
         val pkg = mapper.packageName.asString()
-        val driverSimpleName = mapper.simpleName.asString() + DRIVER_SUFFIX
-        val originalType = ClassName.get(pkg, mapper.simpleName.asString())
-
-        val typeBuilder = TypeSpec.interfaceBuilder(driverSimpleName)
-            .addModifiers(Modifier.PUBLIC)
-            .addSuperinterface(originalType)
-            .addJavadoc(
-                "Generated driver for {@link \$T}. Do not edit.\n" +
-                    "MapStruct's javac processor will produce an implementation of this interface\n" +
-                    "which transitively implements the Kotlin source interface.\n",
-                originalType
-            )
-
         val originalSimpleName = mapper.simpleName.asString()
+        val driverSimpleName = originalSimpleName + DRIVER_SUFFIX
+        val originalType = ClassName.get(pkg, originalSimpleName)
+
+        val typeBuilder = when (shape) {
+            Shape.INTERFACE -> TypeSpec.interfaceBuilder(driverSimpleName)
+                .addModifiers(Modifier.PUBLIC)
+                .addSuperinterface(originalType)
+            Shape.ABSTRACT_CLASS -> TypeSpec.classBuilder(driverSimpleName)
+                .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                .superclass(originalType)
+                .also { addForwardingConstructorIfNeeded(it, mapper) }
+        }
+        typeBuilder.addJavadoc(
+            "Generated driver for {@link \$T}. Do not edit.\n" +
+                "MapStruct's javac processor will produce an implementation of this type\n" +
+                "which transitively satisfies the Kotlin source ${shape.noun}.\n",
+            originalType
+        )
+
         mapper.annotations
             .filter { isMapStructAnnotation(it) }
             .forEach { typeBuilder.addAnnotation(classLevelAnnotationSpec(it, originalSimpleName)) }
@@ -168,6 +168,57 @@ class MapStructDriverProcessor(
         return builder.build()
     }
 
+    /**
+     * Classify the Kotlin declaration or reject it with a pointed error. Anything other than an
+     * `interface` or an `abstract class` is out of scope — final classes can't be extended, open
+     * classes usually mean "oops, meant to write abstract", and sealed/enum/object/etc. don't
+     * fit the MapStruct model at all.
+     */
+    private fun resolveShape(mapper: KSClassDeclaration): Shape? = when {
+        mapper.classKind == ClassKind.INTERFACE -> Shape.INTERFACE
+        mapper.classKind == ClassKind.CLASS && KSModifier.ABSTRACT in mapper.modifiers ->
+            Shape.ABSTRACT_CLASS
+        else -> {
+            logger.error(
+                "mapstruct-ksp: @Mapper on ${mapper.qualifiedName?.asString()} is only supported " +
+                    "on interfaces and abstract classes. Got: ${mapper.classKind}" +
+                    if (mapper.modifiers.isNotEmpty()) " with modifiers ${mapper.modifiers}" else "",
+                mapper
+            )
+            null
+        }
+    }
+
+    /**
+     * If the Kotlin abstract class declares a primary constructor with parameters, our driver
+     * must declare a matching constructor that forwards to `super(...)`. Without this, javac
+     * rejects the driver because there's no implicit `super()` on the Kotlin parent.
+     *
+     * Secondary Kotlin constructors are out of scope for this iteration; only the primary is
+     * mirrored. A parameter-less primary constructor needs no forwarding constructor — Java's
+     * implicit `super()` takes care of it.
+     */
+    private fun addForwardingConstructorIfNeeded(
+        builder: TypeSpec.Builder,
+        mapper: KSClassDeclaration
+    ) {
+        val primary = mapper.primaryConstructor ?: return
+        if (primary.parameters.isEmpty()) return
+
+        val ctor = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC)
+        val paramNames = mutableListOf<String>()
+        primary.parameters.forEach { p ->
+            val pname = p.name?.asString()
+                ?: error("Unnamed constructor parameter in ${mapper.qualifiedName?.asString()}")
+            val ptype = p.type.resolve()
+            ctor.addParameter(typeTranslator.toTypeName(ptype), pname)
+            paramNames.add(pname)
+        }
+        val placeholders = paramNames.joinToString(", ") { "\$L" }
+        ctor.addStatement("super($placeholders)", *paramNames.toTypedArray())
+        builder.addMethod(ctor.build())
+    }
+
     private fun isMapStructAnnotation(annotation: KSAnnotation): Boolean {
         val fqn = annotation.annotationType.resolve().declaration.qualifiedName?.asString()
             ?: return false
@@ -205,6 +256,11 @@ class MapStructDriverProcessor(
         annotation.arguments.any {
             it.name?.asString() == IMPLEMENTATION_NAME_MEMBER && it.origin != Origin.SYNTHETIC
         }
+
+    private enum class Shape(val noun: String) {
+        INTERFACE("interface"),
+        ABSTRACT_CLASS("abstract class")
+    }
 
     companion object {
         const val MAPPER_ANNOTATION_FQN = "org.mapstruct.Mapper"
