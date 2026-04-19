@@ -382,3 +382,121 @@ dependencies {
 The `org.jetbrains.kotlin:kotlin-metadata-jvm` dependency is optional but highly recommended when working with Kotlin and Java.
 Without it, MapStruct will still work but may not handle complex Kotlin scenarios optimally.
 ====
+
+[[kotlin-ksp-setup]]
+=== Kotlin with KSP (experimental)
+
+The setup above lets you declare your DTOs as Kotlin data classes, but the `@Mapper` interface itself must still be written in Java.
+To declare `@Mapper` interfaces and abstract classes directly in Kotlin, MapStruct ships an optional https://github.com/google/ksp[Kotlin Symbol Processing (KSP)] module, `org.mapstruct:mapstruct-ksp`.
+
+It is a companion to the existing javac annotation processor rather than a replacement.
+The pipeline runs in two compile phases:
+
+. `kotlinc` runs with the KSP plugin; the MapStruct KSP processor scans for Kotlin `@Mapper` declarations and emits, for each, a small Java "driver" interface (or abstract class) that extends the Kotlin source type and carries its MapStruct annotations.
+. `javac` runs with the usual `mapstruct-processor` on its annotation-processor path, sees the KSP-generated Java driver, and produces the implementation as it always has.
+
+The implementation transitively satisfies the Kotlin source `@Mapper`, and the processor injects `implementationName = "<OriginalName>Impl"` onto the driver so `Mappers.getMapper(UserMapper::class.java)` continues to work against the Kotlin type rather than the generated Java driver.
+
+[WARNING]
+====
+This module is experimental.
+APIs, generated class names, and the set of supported Kotlin language features may change before 1.7 reaches final release.
+Track https://github.com/mapstruct/mapstruct/issues/2522[issue #2522] for progress.
+====
+
+==== Gradle with KSP
+
+This is the recommended path; KSP's first-party Gradle plugin is maintained by Google.
+
+.Gradle configuration for Kotlin `@Mapper` via KSP
+====
+[source, groovy, linenums]
+[subs="verbatim,attributes"]
+----
+plugins {
+    id 'org.jetbrains.kotlin.jvm' version '<kotlin-version>'
+    id 'com.google.devtools.ksp' version '<ksp-version>'
+}
+
+dependencies {
+    implementation "org.mapstruct:mapstruct:${mapstructVersion}"
+
+    // KSP side: translates Kotlin @Mapper declarations into Java driver stubs.
+    ksp "org.mapstruct:mapstruct-ksp:${mapstructVersion}"
+
+    // javac side: generates the implementation for those Java drivers.
+    annotationProcessor "org.mapstruct:mapstruct-processor:${mapstructVersion}"
+    // Recommended for Kotlin DTO property introspection (as above).
+    annotationProcessor "org.jetbrains.kotlin:kotlin-metadata-jvm:${kotlinVersion}"
+}
+----
+====
+
+Pick a KSP version whose major/minor matches your Kotlin version (KSP 2.3.x for Kotlin 2.3.x, etc.).
+KSP versioning is documented at https://github.com/google/ksp/releases.
+
+==== Maven with KSP
+
+Maven does not have a first-party KSP plugin.
+At the time of writing, the community bridge `com.dyescape:kotlin-maven-symbol-processing` is the established option for wiring KSP into `kotlin-maven-plugin`, but it has historically lagged behind upstream Kotlin releases.
+For Maven projects that want KSP today, either:
+
+* use the community Maven plugin, accepting its update cadence; or
+* keep using the existing `kotlin-maven-plugin` + `kapt` route for `@Mapper` declarations while still benefiting from `kotlin-metadata-jvm` for DTO property handling; or
+* drive a small Gradle build for the Kotlin + KSP portion only.
+
+First-party Maven support is tracked upstream of MapStruct.
+
+==== Writing a Kotlin `@Mapper`
+
+Once configured, a Kotlin `@Mapper` looks identical to its Java counterpart:
+
+.A Kotlin `@Mapper` with Kotlin DTOs
+====
+[source, kotlin, linenums]
+[subs="verbatim,attributes"]
+----
+data class User(val name: String, val age: Int)
+data class UserDto(val fullName: String, val age: Int)
+
+@Mapper
+interface UserMapper {
+
+    @Mapping(target = "fullName", source = "name")
+    fun toDto(user: User): UserDto
+}
+
+// Retrieval is unchanged from the Java case:
+val mapper = Mappers.getMapper(UserMapper::class.java)
+val dto = mapper.toDto(User("Alice", 30))
+----
+====
+
+Abstract classes are supported the same way, including primary-constructor injection — the driver emits a forwarding constructor that calls `super(...)`.
+
+==== What the KSP processor emits
+
+For each Kotlin `@Mapper`, a Java file lands in `build/generated/ksp/main/java/<pkg>/<OriginalName>Driver.java`.
+It:
+
+* carries every `org.mapstruct.*` annotation from the Kotlin source (annotations on the class, on methods, and on parameters), with synthesized default values filtered out so the output stays readable;
+* mirrors class- and method-level type parameters (including upper bounds);
+* translates Kotlin built-ins to their JVM equivalents (`kotlin.String` → `java.lang.String`, `kotlin.collections.List` → `java.util.List`, `Unit` return → `void`);
+* emits JVM primitives for non-null Kotlin primitive types (`Int` → `int`) and boxed types for nullable ones (`Int?` → `java.lang.Integer`), so override signatures match the Kotlin parent's bytecode;
+* emits JetBrains `@Nullable`/`@NotNull` on method return types and parameters, mirroring what `kotlinc` itself attaches to Kotlin signatures at the JVM level;
+* injects `implementationName` so MapStruct's impl lands under the Kotlin type's name.
+
+==== Known limitations
+
+The following Kotlin features are out of scope for this iteration and either rejected with a pointed error or intentionally not translated:
+
+* `where`-clause multi-bounds on type parameters (only the primary bound flows through).
+* Use-site variance (`Producer<out T>`, `Consumer<in T>`).
+* Star projections (`List<*>`).
+* `suspend` functions.
+* Extension receivers.
+* Inline / value classes (the JVM signature differs from a naive translation).
+* `@JvmStatic` companion-object methods.
+* Use-site-targeted annotations (`@get:Foo`, `@param:Foo`) — currently dropped silently.
+
+`@Mapper` on a Kotlin `class` that is neither `interface` nor `abstract` is rejected with a message naming the `ClassKind` we observed.
