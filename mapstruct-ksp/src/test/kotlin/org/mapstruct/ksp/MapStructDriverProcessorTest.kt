@@ -152,6 +152,38 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
+    @DisplayName("driver carries @Generated(value, comments=source:...) like mapstruct-processor's own impls")
+    fun generatedAnnotationIsEmitted() {
+        val result = compile(
+            SourceFile.kotlin(
+                "SomeMapper.kt",
+                """
+                package gen
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                interface SomeMapper {
+                    fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gen/SomeMapperDriver.java")
+        assertThat(driver)
+            // Prefer the JDK 9+ annotation; KSP 2.3.x requires a modern JDK so this should
+            // always be the resolved one in realistic builds.
+            .contains("import javax.annotation.processing.Generated")
+            .contains("value = \"org.mapstruct.ksp.MapStructDriverProcessor\"")
+            // Package-relative source path — reproducible across machines (no absolute path).
+            .contains("comments = \"source: gen/SomeMapper.kt\"")
+    }
+
+    @Test
     @DisplayName("@Mapper(config = KotlinConfigInterface::class) — the class literal survives")
     fun mapperConfigReferenceSurvives() {
         // Regression test. @MapperConfig itself is pure configuration — MapStruct's javac APT

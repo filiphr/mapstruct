@@ -59,7 +59,16 @@ class MapStructDriverProcessor(
     private val annotationRenderer = KsAnnotationJavaRenderer()
     private val typeTranslator = KsTypeToJavaPoet()
 
+    /**
+     * The `@Generated` annotation type to put on the emitted driver. Resolved once per KSP round
+     * via [resolveGeneratedAnnotation]; null if neither variant is on the classpath (very old JDK
+     * / stripped runtime). Cached here so every driver in a round shares the same resolution.
+     */
+    private var generatedAnnotation: ClassName? = null
+
     override fun process(resolver: Resolver): List<KSAnnotated> {
+        generatedAnnotation = resolveGeneratedAnnotation(resolver)
+
         // Only process @Mapper declarations originating from Kotlin source. Our own generated
         // driver interfaces also carry @Mapper (on purpose — javac's MapStruct processor needs
         // to see it); without this filter, KSP would pick them up in the next round and emit
@@ -123,6 +132,10 @@ class MapStructDriverProcessor(
                 "which transitively satisfies the Kotlin source ${shape.noun}.\n",
             originalRaw
         )
+
+        // Standard `@Generated` marker. Matches what mapstruct-processor emits on its own
+        // generated *Impl classes, so readers have a single convention across both tools.
+        generatedAnnotation?.let { typeBuilder.addAnnotation(generatedAnnotationSpec(it, mapper)) }
 
         mapper.annotations
             .filter { isMapStructAnnotation(it) }
@@ -340,6 +353,53 @@ class MapStructDriverProcessor(
         }
     }
 
+    /**
+     * Resolve the `@Generated` annotation type to put on drivers.
+     *
+     * Mirrors mapstruct-processor's `GeneratedType.java:120-133`:
+     *   1. prefer `javax.annotation.processing.Generated` (JDK 9+, in the `java.compiler` module),
+     *   2. fall back to the JSR-250 `javax.annotation.Generated` if the above is missing,
+     *   3. return null if neither is resolvable — we omit the annotation entirely in that case
+     *      rather than emit something that won't compile. mapstruct-processor wraps the annotation
+     *      in a block comment in that case; for a brand-new module requiring KSP 2.3.x (which in
+     *      practice needs a modern JDK), the fallback is theoretical and not worth the extra
+     *      codegen plumbing.
+     *
+     * Resolution uses KSP's [Resolver], which is the equivalent of mapstruct-processor's
+     * `typeFactory.isTypeAvailable`.
+     */
+    private fun resolveGeneratedAnnotation(resolver: Resolver): ClassName? {
+        if (resolver.getClassDeclarationByName(resolver.getKSNameFromString(PROCESSING_GENERATED_FQN)) != null) {
+            return ClassName.get("javax.annotation.processing", "Generated")
+        }
+        if (resolver.getClassDeclarationByName(resolver.getKSNameFromString(JSR250_GENERATED_FQN)) != null) {
+            return ClassName.get("javax.annotation", "Generated")
+        }
+        return null
+    }
+
+    /**
+     * Build the `@Generated` annotation for a specific driver, including the source `.kt` file
+     * in the `comments` string so readers landing on the generated driver from a javac diagnostic
+     * can see which Kotlin file the annotation came from. Path is package-relative so the output
+     * is reproducible across machines.
+     */
+    private fun generatedAnnotationSpec(
+        generatedType: ClassName,
+        mapper: KSClassDeclaration
+    ): AnnotationSpec {
+        val sourcePath = mapper.containingFile?.let { file ->
+            val pkg = file.packageName.asString()
+            if (pkg.isEmpty()) file.fileName else "${pkg.replace('.', '/')}/${file.fileName}"
+        }
+        val builder = AnnotationSpec.builder(generatedType)
+            .addMember("value", "\$S", PROCESSOR_NAME)
+        if (sourcePath != null) {
+            builder.addMember("comments", "\$S", "source: $sourcePath")
+        }
+        return builder.build()
+    }
+
     private enum class Shape(val noun: String) {
         INTERFACE("interface"),
         ABSTRACT_CLASS("abstract class")
@@ -359,6 +419,10 @@ class MapStructDriverProcessor(
         // compile classpath. Users' projects get the annotations transitively via kotlin-stdlib.
         private val NULLABLE = ClassName.get("org.jetbrains.annotations", "Nullable")
         private val NOT_NULL = ClassName.get("org.jetbrains.annotations", "NotNull")
+
+        private const val PROCESSING_GENERATED_FQN = "javax.annotation.processing.Generated"
+        private const val JSR250_GENERATED_FQN = "javax.annotation.Generated"
+        private const val PROCESSOR_NAME = "org.mapstruct.ksp.MapStructDriverProcessor"
     }
 }
 
