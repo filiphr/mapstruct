@@ -152,6 +152,47 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
+    @DisplayName("@Mapper(config = KotlinConfigInterface::class) — the class literal survives")
+    fun mapperConfigReferenceSurvives() {
+        // Regression test. @MapperConfig itself is pure configuration — MapStruct's javac APT
+        // only finds it through a @Mapper(config = ...) reference, then reads its annotations
+        // off the compiled classpath .class (kotlinc has already produced that by the time
+        // javac runs). So our KSP processor only has to faithfully copy the `config` class
+        // literal onto the driver — no driver generation for the config type itself. This
+        // test locks that contract in.
+        val result = compile(
+            SourceFile.kotlin(
+                "ConfiguredMapper.kt",
+                """
+                package cfg
+
+                import org.mapstruct.Mapper
+                import org.mapstruct.MapperConfig
+                import org.mapstruct.ReportingPolicy
+
+                @MapperConfig(unmappedTargetPolicy = ReportingPolicy.ERROR)
+                interface SharedConfig
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper(config = SharedConfig::class)
+                interface ConfiguredMapper {
+                    fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("cfg/ConfiguredMapperMapStruct.java")
+        assertThat(driver)
+            .contains("config = SharedConfig.class")
+        // And crucially, we do NOT emit a driver for the @MapperConfig type itself.
+        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "SharedConfigMapStruct.java" })
+            .isFalse()
+    }
+
+    @Test
     @DisplayName("Kotlin built-ins (String, Int, List<T>) translate to JVM platform types")
     fun kotlinBuiltinsTranslateToJvmTypes() {
         val result = compile(
