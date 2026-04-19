@@ -258,6 +258,58 @@ class KsAnnotationJavaRendererTest {
     }
 
     @Test
+    @DisplayName("arguments matching a declared default are suppressed")
+    fun defaultMatchingArgumentsAreDropped() {
+        val out = renderer.render(
+            FakeKsp.ksAnnotation(
+                "org.mapstruct.Mapper",
+                args = listOf(
+                    "componentModel" to "spring",   // user-specified (differs from default)
+                    "unmappedTargetPolicy" to enumEntry("org.mapstruct.ReportingPolicy", "WARN")
+                    // ^ matches default — should be dropped
+                ),
+                defaults = listOf(
+                    "componentModel" to "default",
+                    "unmappedTargetPolicy" to enumEntry("org.mapstruct.ReportingPolicy", "WARN")
+                )
+            )
+        )
+        assertThat(out).isEqualTo("""@org.mapstruct.Mapper(componentModel = "spring")""")
+    }
+
+    @Test
+    @DisplayName("synthetic-origin arguments are suppressed even without defaultArguments info")
+    fun syntheticOriginArgumentsAreDropped() {
+        val synthetic = FakeKsp.ksAnnotation(
+            "org.mapstruct.Mapper",
+            args = listOf(
+                "componentModel" to "spring"
+            ),
+            argsOrigin = com.google.devtools.ksp.symbol.Origin.SYNTHETIC
+        )
+        // Every arg is marked SYNTHETIC → all dropped → bare annotation.
+        assertThat(renderer.render(synthetic)).isEqualTo("@org.mapstruct.Mapper")
+    }
+
+    @Test
+    @DisplayName("nested-annotation defaults compare structurally, not by identity")
+    fun nestedAnnotationDefaultComparison() {
+        val userInner = FakeKsp.ksAnnotation("com.example.Builder",
+            args = listOf("buildMethod" to "build"))
+        val defaultInner = FakeKsp.ksAnnotation("com.example.Builder",
+            args = listOf("buildMethod" to "build"))
+        val out = renderer.render(
+            FakeKsp.ksAnnotation(
+                "org.mapstruct.Mapper",
+                args = listOf("builder" to userInner),
+                defaults = listOf("builder" to defaultInner)
+            )
+        )
+        // user-written value matches the declared default structurally → dropped.
+        assertThat(out).isEqualTo("@org.mapstruct.Mapper")
+    }
+
+    @Test
     @DisplayName("unsupported value kind fails loudly rather than silently misrendering")
     fun unsupportedValueThrows() {
         // A raw java.util.Date isn't a valid KSP annotation value shape — renderer should complain.

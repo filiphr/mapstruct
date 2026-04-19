@@ -18,6 +18,7 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.validate
 import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.JavaFile
@@ -51,11 +52,19 @@ class MapStructDriverProcessor(
     private val typeTranslator = KsTypeToJavaPoet()
 
     override fun process(resolver: Resolver): List<KSAnnotated> {
-        val mappers = resolver.getSymbolsWithAnnotation(MAPPER_ANNOTATION_FQN).toList()
+        // Only process @Mapper declarations originating from Kotlin source. Our own generated
+        // driver interfaces also carry @Mapper (on purpose — javac's MapStruct processor needs
+        // to see it); without this filter, KSP would pick them up in the next round and emit
+        // FooMapStructMapStruct, unbounded. Declarations from .class files on the classpath and
+        // from other generated Java are also skipped — only Kotlin sources in the compilation
+        // unit are in scope for this processor.
+        val kotlinSourceMappers = resolver.getSymbolsWithAnnotation(MAPPER_ANNOTATION_FQN)
+            .filter { it.origin == Origin.KOTLIN }
+            .toList()
 
         // Defer symbols whose dependencies (referenced types in parameters/returns) aren't yet
         // resolvable — typically because they're being generated in the same round.
-        val (ready, deferred) = mappers.partition { it.validate() }
+        val (ready, deferred) = kotlinSourceMappers.partition { it.validate() }
         ready.filterIsInstance<KSClassDeclaration>().forEach { tryGenerate(it) }
         return deferred
     }

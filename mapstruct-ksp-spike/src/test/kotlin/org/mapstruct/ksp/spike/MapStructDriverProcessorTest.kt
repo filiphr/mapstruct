@@ -213,6 +213,141 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
+    @DisplayName("bare @Mapper renders without materialized default arguments")
+    fun bareMapperHasNoDefaultArgs() {
+        val result = compile(
+            SourceFile.kotlin(
+                "BareMapper.kt",
+                """
+                package bare
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                interface BareMapper {
+                    fun map(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("bare/BareMapperMapStruct.java")
+        // The filter should drop every synthesized default. The @Mapper line is therefore bare,
+        // not a 20-line dump of every Mapper attribute with its declared default.
+        assertThat(driver)
+            .contains("@Mapper\n")
+            .doesNotContain("componentModel = \"default\"")
+            .doesNotContain("ReportingPolicy.IGNORE")
+            .doesNotContain("collectionMappingStrategy =")
+            .doesNotContain("nullValueMappingStrategy =")
+            .doesNotContain("builder = @Builder")
+    }
+
+    @Test
+    @DisplayName("user-supplied @Mapper attributes are preserved; others are dropped")
+    fun userSuppliedMapperAttributesSurviveOnly() {
+        val result = compile(
+            SourceFile.kotlin(
+                "PartialMapper.kt",
+                """
+                package partial
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper(componentModel = "spring")
+                interface PartialMapper {
+                    fun map(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("partial/PartialMapperMapStruct.java")
+        assertThat(driver)
+            .contains("componentModel = \"spring\"")
+            // Nothing else under @Mapper should appear — all other fields are still at default.
+            .doesNotContain("unmappedSourcePolicy")
+            .doesNotContain("typeConversionPolicy")
+            .doesNotContain("collectionMappingStrategy")
+            .doesNotContain("nullValueMappingStrategy")
+    }
+
+    @Test
+    @DisplayName("@Mapping defaults collapse too — only user-specified fields survive")
+    fun mappingDefaultsAlsoCollapse() {
+        val result = compile(
+            SourceFile.kotlin(
+                "SlimMapping.kt",
+                """
+                package slim
+
+                import org.mapstruct.Mapper
+                import org.mapstruct.Mapping
+
+                data class Src(val name: String)
+                data class Tgt(val fullName: String)
+
+                @Mapper
+                interface SlimMapping {
+                    @Mapping(target = "fullName", source = "name")
+                    fun toTgt(src: Src): Tgt
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("slim/SlimMappingMapStruct.java")
+        assertThat(driver)
+            .contains("target = \"fullName\"")
+            .contains("source = \"name\"")
+            // All those `dateFormat = ""`, `ignore = false`, `qualifiedBy = {}` filler defaults
+            // from @Mapping should no longer be in the output.
+            .doesNotContain("dateFormat = \"\"")
+            .doesNotContain("numberFormat = \"\"")
+            .doesNotContain("ignore = false")
+            .doesNotContain("qualifiedBy = {}")
+            .doesNotContain("dependsOn = {}")
+    }
+
+    @Test
+    @DisplayName("the processor does not reprocess its own generated @Mapper output")
+    fun doesNotReprocessGeneratedOutput() {
+        val result = compile(
+            SourceFile.kotlin(
+                "SimpleMapper.kt",
+                """
+                package recursive
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                interface SimpleMapper {
+                    fun map(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val allGenerated = result.kspSourcesDir.walkTopDown()
+            .filter { it.isFile && it.name.endsWith(".java") }
+            .map { it.name }
+            .toList()
+        // Expect exactly one generated driver. Without the Origin.KOTLIN filter, later KSP
+        // rounds would pick up the generated Java @Mapper and produce SimpleMapperMapStructMapStruct,
+        // then SimpleMapperMapStructMapStructMapStruct, until the filesystem refuses the filename.
+        assertThat(allGenerated).containsExactly("SimpleMapperMapStruct.java")
+    }
+
+    @Test
     @DisplayName("@Mapper on a class (not interface) is reported and skipped")
     fun mapperOnClassReportsError() {
         val result = compile(

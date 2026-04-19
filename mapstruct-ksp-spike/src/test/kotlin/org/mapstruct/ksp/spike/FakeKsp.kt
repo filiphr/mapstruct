@@ -13,6 +13,7 @@ import com.google.devtools.ksp.symbol.KSName
 import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeReference
 import com.google.devtools.ksp.symbol.KSValueArgument
+import com.google.devtools.ksp.symbol.Origin
 import java.lang.reflect.Proxy
 import kotlin.reflect.KClass
 
@@ -77,19 +78,30 @@ internal object FakeKsp {
         "resolve" to { ksType(decl) }
     ))
 
-    fun ksValueArg(name: String?, value: Any?): KSValueArgument = proxy(KSValueArgument::class, mapOf(
+    fun ksValueArg(
+        name: String?,
+        value: Any?,
+        origin: Origin = Origin.KOTLIN
+    ): KSValueArgument = proxy(KSValueArgument::class, mapOf(
         "getName" to { name?.let(::ksName) },
         "getValue" to { value },
-        "isSpread" to { false }
+        "isSpread" to { false },
+        "getOrigin" to { origin }
     ))
 
-    fun ksAnnotation(fqn: String, args: List<Pair<String?, Any?>> = emptyList()): KSAnnotation {
+    fun ksAnnotation(
+        fqn: String,
+        args: List<Pair<String?, Any?>> = emptyList(),
+        defaults: List<Pair<String?, Any?>> = emptyList(),
+        argsOrigin: Origin = Origin.KOTLIN
+    ): KSAnnotation {
         val decl = ksClassDecl(fqn, ClassKind.ANNOTATION_CLASS)
-        val ksArgs = args.map { (n, v) -> ksValueArg(n, v) }
+        val ksArgs = args.map { (n, v) -> ksValueArg(n, v, argsOrigin) }
+        val ksDefaults = defaults.map { (n, v) -> ksValueArg(n, v, Origin.SYNTHETIC) }
         return proxy(KSAnnotation::class, mapOf(
             "getAnnotationType" to { ksTypeRef(decl) },
             "getArguments" to { ksArgs },
-            "getDefaultArguments" to { emptyList<KSValueArgument>() },
+            "getDefaultArguments" to { ksDefaults },
             "getShortName" to { ksName(fqn.substringAfterLast('.')) },
             "getUseSiteTarget" to { null }
         ))
