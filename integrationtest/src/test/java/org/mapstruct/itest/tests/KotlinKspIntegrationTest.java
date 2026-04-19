@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * <p>Drives a Gradle build against the sub-project at
  * {@code integrationtest/src/test/resources/kotlinKspTest/}. That build:
  * <ol>
- * <li>runs kotlinc + KSP (with {@code mapstruct-ksp-spike} as the KSP processor) to emit a Java
+ * <li>runs kotlinc + KSP (with {@code mapstruct-ksp} as the KSP processor) to emit a Java
  *     driver interface shadowing the Kotlin {@code @Mapper};</li>
  * <li>runs javac on that driver with {@code mapstruct-processor} as a javac annotation processor
  *     to generate the impl;</li>
@@ -44,10 +44,9 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * Maven community bridge ({@code com.dyescape:kotlin-maven-symbol-processing}) hasn't been
  * updated for Kotlin 2.x. The pattern mirrors {@link GradleIncrementalCompilationTest}.
  *
- * <p>Requires: {@code mapstruct-ksp-spike}, {@code mapstruct-processor} and {@code mapstruct} to
+ * <p>Requires: {@code mapstruct-ksp}, {@code mapstruct-processor} and {@code mapstruct} to
  * be built into their respective {@code target/} directories before this test runs. Enable the
- * {@code ksp-spike} profile and run {@code mvn -Pksp-spike -DskipTests package} at the reactor
- * root first.
+ * {@code ksp} profile and run {@code mvn -Pksp -DskipTests package} at the reactor root first.
  */
 @EnabledForJreRange(min = JRE.JAVA_21)
 class KotlinKspIntegrationTest {
@@ -71,9 +70,9 @@ class KotlinKspIntegrationTest {
         // Skip early if the caller forgot to build the spike module. Failing inside Gradle here
         // is noisy and the error message is far from the cause; surface the precondition plainly.
         assumeTrue(
-            findJar( rootPath.resolve( "mapstruct-ksp-spike/target" ), "mapstruct-ksp-spike-" ) != null,
-            "mapstruct-ksp-spike jar not built. Run with -Pksp-spike and -am so the spike is in "
-                + "the reactor:\n  ./mvnw -Pksp-spike -DskipTests -am package"
+            findJar( rootPath.resolve( "mapstruct-ksp/target" ), "mapstruct-ksp-" ) != null,
+            "mapstruct-ksp jar not built. Run with -Pksp and -am so the module is in the "
+                + "reactor:\n  ./mvnw -Pksp -DskipTests -am package"
         );
         assumeTrue(
             findJar( rootPath.resolve( "processor/target" ), "mapstruct-processor-" ) != null,
@@ -109,7 +108,7 @@ class KotlinKspIntegrationTest {
         // the test sub-project's JUnit test would fail to compile — which would also fail here,
         // but with a less-pointed error. The positive existence check is more diagnostic.
         Path generated = testProjectDir.toPath().resolve(
-            "build/generated/ksp/main/java/org/mapstruct/itest/ksp/UserMapperMapStruct.java" );
+            "build/generated/ksp/main/java/org/mapstruct/itest/ksp/UserMapperDriver.java" );
         assertThat( Files.exists( generated ) )
             .as( "expected KSP to emit driver at %s", generated )
             .isTrue();

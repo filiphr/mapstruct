@@ -16,13 +16,14 @@
         <relativePath>../parent/pom.xml</relativePath>
     </parent>
 
-    <artifactId>mapstruct-ksp-spike</artifactId>
+    <artifactId>mapstruct-ksp</artifactId>
     <packaging>jar</packaging>
-    <name>MapStruct KSP Spike</name>
+    <name>MapStruct KSP</name>
     <description>
-        Spike: verify that KSAnnotation values can be faithfully rendered as Java annotation source.
-        This is the riskiest sub-problem for the KSP-generates-Java-stubs hybrid approach to Kotlin support.
-        Not part of the published distribution. Built only under the -Pksp-spike profile.
+        KSP (Kotlin Symbol Processing) processor that translates Kotlin @Mapper interfaces and
+        abstract classes into Java driver stubs, which MapStruct's javac annotation processor then
+        generates implementations for. Experimental; not yet part of the default build — opt in via
+        the `ksp` profile.
     </description>
 
     <properties>

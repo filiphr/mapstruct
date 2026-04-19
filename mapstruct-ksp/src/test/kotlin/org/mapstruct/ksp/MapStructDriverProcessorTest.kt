@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package org.mapstruct.ksp.spike
+package org.mapstruct.ksp
 
 import com.tschuchort.compiletesting.KotlinCompilation
 import com.tschuchort.compiletesting.SourceFile
@@ -58,11 +58,11 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("com/example/UserMapperMapStruct.java")
+        val driver = result.findGenerated("com/example/UserMapperDriver.java")
         assertThat(driver)
             .contains("package com.example;")
             .contains("@Mapper")
-            .contains("interface UserMapperMapStruct extends UserMapper")
+            .contains("interface UserMapperDriver extends UserMapper")
             .contains("@Override")
             .contains("@Mapping")
             .contains("target = \"fullName\"")
@@ -101,9 +101,9 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("shop/OrderMapperMapStruct.java")
+        val driver = result.findGenerated("shop/OrderMapperDriver.java")
         assertThat(driver)
-            .contains("interface OrderMapperMapStruct extends OrderMapper")
+            .contains("interface OrderMapperDriver extends OrderMapper")
             .contains("OrderDto toDto(Order order)")
             .contains("Order toEntity(OrderDto dto)")
             .contains("@Mappings")
@@ -143,7 +143,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("rich/RichMapperMapStruct.java")
+        val driver = result.findGenerated("rich/RichMapperDriver.java")
         assertThat(driver)
             .contains("componentModel = \"spring\"")
             .contains("HelperOne.class")
@@ -184,11 +184,11 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("cfg/ConfiguredMapperMapStruct.java")
+        val driver = result.findGenerated("cfg/ConfiguredMapperDriver.java")
         assertThat(driver)
             .contains("config = SharedConfig.class")
         // And crucially, we do NOT emit a driver for the @MapperConfig type itself.
-        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "SharedConfigMapStruct.java" })
+        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "SharedConfigDriver.java" })
             .isFalse()
     }
 
@@ -216,7 +216,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("coll/ListMapperMapStruct.java")
+        val driver = result.findGenerated("coll/ListMapperDriver.java")
         assertThat(driver)
             // List<Item> → java.util.List<Item> (java.util.List imported, Item in same pkg).
             .contains("List<Item> items")
@@ -252,7 +252,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("nlb/NullabilityMapperMapStruct.java")
+        val driver = result.findGenerated("nlb/NullabilityMapperDriver.java")
         assertThat(driver)
             .contains("int unboxed(")
             .contains("Integer maybe(")
@@ -282,7 +282,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("gen/GenericsMapperMapStruct.java")
+        val driver = result.findGenerated("gen/GenericsMapperDriver.java")
         assertThat(driver)
             // List<Int> → List<Integer>, never List<int> (illegal in Java).
             .contains("List<Integer> values")
@@ -312,7 +312,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("v/VoidMapperMapStruct.java")
+        val driver = result.findGenerated("v/VoidMapperDriver.java")
         assertThat(driver)
             .contains("void fill(Src src, Sink sink)")
     }
@@ -339,7 +339,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("bare/BareMapperMapStruct.java")
+        val driver = result.findGenerated("bare/BareMapperDriver.java")
         // Synthetic defaults should be dropped. The only member we expect on the copied @Mapper
         // is `implementationName` — injected by the processor so Mappers.getMapper works against
         // the Kotlin interface. All the other 20-odd default fields must not appear.
@@ -374,7 +374,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("partial/PartialMapperMapStruct.java")
+        val driver = result.findGenerated("partial/PartialMapperDriver.java")
         assertThat(driver)
             .contains("componentModel = \"spring\"")
             // Nothing else under @Mapper should appear — all other fields are still at default.
@@ -408,7 +408,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("slim/SlimMappingMapStruct.java")
+        val driver = result.findGenerated("slim/SlimMappingDriver.java")
         assertThat(driver)
             .contains("target = \"fullName\"")
             .contains("source = \"name\"")
@@ -443,8 +443,8 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("inj/UserMapperMapStruct.java")
-        // MapStruct's APT will emit UserMapperImpl (not UserMapperMapStructImpl), which matches
+        val driver = result.findGenerated("inj/UserMapperDriver.java")
+        // MapStruct's APT will emit UserMapperImpl (not UserMapperDriverImpl), which matches
         // the <class>Impl convention against the original Kotlin interface.
         assertThat(driver).contains("implementationName = \"UserMapperImpl\"")
     }
@@ -471,7 +471,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("inj/UserMapperMapStruct.java")
+        val driver = result.findGenerated("inj/UserMapperDriver.java")
         assertThat(driver)
             .contains("implementationName = \"CustomImpl\"")
             .doesNotContain("implementationName = \"UserMapperImpl\"")
@@ -504,9 +504,9 @@ class MapStructDriverProcessorTest {
             .map { it.name }
             .toList()
         // Expect exactly one generated driver. Without the Origin.KOTLIN filter, later KSP
-        // rounds would pick up the generated Java @Mapper and produce SimpleMapperMapStructMapStruct,
-        // then SimpleMapperMapStructMapStructMapStruct, until the filesystem refuses the filename.
-        assertThat(allGenerated).containsExactly("SimpleMapperMapStruct.java")
+        // rounds would pick up the generated Java @Mapper and produce SimpleMapperDriverDriver,
+        // then SimpleMapperDriverDriverDriver, until the filesystem refuses the filename.
+        assertThat(allGenerated).containsExactly("SimpleMapperDriver.java")
     }
 
     @Test
@@ -528,9 +528,9 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("gp/GenericMapperMapStruct.java")
+        val driver = result.findGenerated("gp/GenericMapperDriver.java")
         assertThat(driver)
-            .contains("interface GenericMapperMapStruct<S, T> extends GenericMapper<S, T>")
+            .contains("interface GenericMapperDriver<S, T> extends GenericMapper<S, T>")
             .contains("T map(S s)")
     }
 
@@ -553,7 +553,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("gp/BoundedMapperMapStruct.java")
+        val driver = result.findGenerated("gp/BoundedMapperDriver.java")
         assertThat(driver)
             .contains("<T extends Number>")
             .contains("extends BoundedMapper<T>")
@@ -583,7 +583,7 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("gp/MMMapStruct.java")
+        val driver = result.findGenerated("gp/MMDriver.java")
         assertThat(driver)
             .contains("<U> List<U> wrap(U value)")
             .contains("B simple(A a)")
@@ -608,9 +608,9 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("gp/GenericAbstractMapStruct.java")
+        val driver = result.findGenerated("gp/GenericAbstractDriver.java")
         assertThat(driver)
-            .contains("class GenericAbstractMapStruct<S, T> extends GenericAbstract<S, T>")
+            .contains("class GenericAbstractDriver<S, T> extends GenericAbstract<S, T>")
             .contains("public abstract T map(S s)")
     }
 
@@ -638,9 +638,9 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("ac/AbstractMapperMapStruct.java")
+        val driver = result.findGenerated("ac/AbstractMapperDriver.java")
         assertThat(driver)
-            .contains("public abstract class AbstractMapperMapStruct extends AbstractMapper")
+            .contains("public abstract class AbstractMapperDriver extends AbstractMapper")
             .contains("@Override")
             .contains("public abstract B toB(A a)")
             .contains("implementationName = \"AbstractMapperImpl\"")
@@ -673,10 +673,10 @@ class MapStructDriverProcessorTest {
             )
         )
 
-        val driver = result.findGenerated("ac/InjectableMapperMapStruct.java")
+        val driver = result.findGenerated("ac/InjectableMapperDriver.java")
         assertThat(driver)
-            .contains("public abstract class InjectableMapperMapStruct extends InjectableMapper")
-            .contains("public InjectableMapperMapStruct(StringHelper strings, DateHelper dates)")
+            .contains("public abstract class InjectableMapperDriver extends InjectableMapper")
+            .contains("public InjectableMapperDriver(StringHelper strings, DateHelper dates)")
             .contains("super(strings, dates)")
     }
 
@@ -704,7 +704,7 @@ class MapStructDriverProcessorTest {
 
         assertThat(result.messages)
             .contains("only supported on interfaces and abstract classes")
-        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "OpenMapperMapStruct.java" })
+        assertThat(result.kspSourcesDir.walkTopDown().any { it.name == "OpenMapperDriver.java" })
             .isFalse()
     }
 

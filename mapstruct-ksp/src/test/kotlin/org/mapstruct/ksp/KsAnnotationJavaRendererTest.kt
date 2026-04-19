@@ -3,15 +3,15 @@
  *
  * Licensed under the Apache License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package org.mapstruct.ksp.spike
+package org.mapstruct.ksp
 
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.mapstruct.ksp.spike.FakeKsp.classLiteral
-import org.mapstruct.ksp.spike.FakeKsp.enumEntry
-import org.mapstruct.ksp.spike.FakeKsp.ksAnnotation
+import org.mapstruct.ksp.FakeKsp.classLiteral
+import org.mapstruct.ksp.FakeKsp.enumEntry
+import org.mapstruct.ksp.FakeKsp.ksAnnotation
 
 /**
  * Spike goal: prove that every annotation-value shape MapStruct puts on a @Mapper (and nested

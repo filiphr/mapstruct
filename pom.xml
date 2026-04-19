@@ -87,13 +87,13 @@
             </modules>
         </profile>
         <!--
-            Spike: KSP-backed Kotlin support. Opt-in only; not part of the default build or the
-            published distribution. Enable with: mvn -Pksp-spike ...
+            KSP-backed Kotlin support. Opt-in only while the module stabilises — not part of the
+            default build or the published distribution yet. Enable with: mvn -Pksp ...
         -->
         <profile>
-            <id>ksp-spike</id>
+            <id>ksp</id>
             <modules>
-                <module>mapstruct-ksp-spike</module>
+                <module>mapstruct-ksp</module>
             </modules>
         </profile>
     </profiles>

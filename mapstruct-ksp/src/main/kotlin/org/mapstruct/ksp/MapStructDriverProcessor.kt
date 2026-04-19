@@ -3,7 +3,7 @@
  *
  * Licensed under the Apache License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
-package org.mapstruct.ksp.spike
+package org.mapstruct.ksp
 
 import com.google.devtools.ksp.isAbstract
 import com.google.devtools.ksp.processing.CodeGenerator
@@ -61,7 +61,7 @@ class MapStructDriverProcessor(
         // Only process @Mapper declarations originating from Kotlin source. Our own generated
         // driver interfaces also carry @Mapper (on purpose — javac's MapStruct processor needs
         // to see it); without this filter, KSP would pick them up in the next round and emit
-        // FooMapStructMapStruct, unbounded. Declarations from .class files on the classpath and
+        // FooDriverDriver, unbounded. Declarations from .class files on the classpath and
         // from other generated Java are also skipped — only Kotlin sources in the compilation
         // unit are in scope for this processor.
         val kotlinSourceMappers = resolver.getSymbolsWithAnnotation(MAPPER_ANNOTATION_FQN)
@@ -96,7 +96,7 @@ class MapStructDriverProcessor(
         val originalRaw = ClassName.get(pkg, originalSimpleName)
 
         // Class-level type parameters are mirrored onto the driver, and used to parameterise the
-        // super-type reference so `FooMapStruct<S, T> extends Foo<S, T>` compiles.
+        // super-type reference so `FooDriver<S, T> extends Foo<S, T>` compiles.
         val classTypeVariables = mapper.typeParameters.map(::typeVariableNameOf)
         val parameterisedSuper: TypeName = if (classTypeVariables.isEmpty()) {
             originalRaw
@@ -243,7 +243,7 @@ class MapStructDriverProcessor(
      * For `@Mapper` specifically, inject `implementationName = "<original>Impl"` unless the user
      * already supplied their own value. This makes `Mappers.getMapper(UserMapper::class.java)`
      * resolve: MapStruct will emit `UserMapperImpl` rather than the default
-     * `UserMapperMapStructImpl`, and `Mappers.getMapper` looks up `UserMapperImpl` by its
+     * `UserMapperDriverImpl`, and `Mappers.getMapper` looks up `UserMapperImpl` by its
      * `<class-name>Impl` convention. The impl extends the driver, which extends the Kotlin
      * interface, so the type cast inside `Mappers.getMapper` succeeds transitively.
      */
@@ -303,7 +303,12 @@ class MapStructDriverProcessor(
 
     companion object {
         const val MAPPER_ANNOTATION_FQN = "org.mapstruct.Mapper"
-        const val DRIVER_SUFFIX = "MapStruct"
+        /**
+         * Driver class name = Kotlin source name + this suffix. Deliberately not "MapStruct" —
+         * that clashes with the project name in user-facing imports and bean names. "Driver"
+         * matches how we talk about this intermediate throughout the internals.
+         */
+        const val DRIVER_SUFFIX = "Driver"
         private const val IMPLEMENTATION_NAME_MEMBER = "implementationName"
     }
 }

@@ -8,7 +8,7 @@
  * End-to-end integration build for the KSP-backed Kotlin support.
  *
  * Pipeline exercised:
- *   kotlinc + KSP (mapstruct-ksp-spike) → emits a Java driver interface shadowing the Kotlin
+ *   kotlinc + KSP (mapstruct-ksp) → emits a Java driver interface shadowing the Kotlin
  *   @Mapper; javac then runs with mapstruct-processor as a javac annotation processor, sees the
  *   generated driver, and produces the impl. The JUnit test in src/test/java loads the mapper
  *   through `Mappers.getMapper` and asserts the DTO is produced correctly.
@@ -32,7 +32,7 @@ repositories {
     flatDir {
         dirs("$mapstructRootPath/core/target")
         dirs("$mapstructRootPath/processor/target")
-        dirs("$mapstructRootPath/mapstruct-ksp-spike/target")
+        dirs("$mapstructRootPath/mapstruct-ksp/target")
     }
 }
 
@@ -41,7 +41,7 @@ dependencies {
     implementation(files("$mapstructRootPath/core/target/mapstruct-$mapstructVersion.jar"))
 
     // KSP-side: translates Kotlin @Mapper interfaces to Java driver stubs.
-    ksp(files("$mapstructRootPath/mapstruct-ksp-spike/target/mapstruct-ksp-spike-$mapstructVersion.jar"))
+    ksp(files("$mapstructRootPath/mapstruct-ksp/target/mapstruct-ksp-$mapstructVersion.jar"))
 
     // javac-side: MapStruct's own annotation processor, which generates the impl of the driver.
     annotationProcessor(files("$mapstructRootPath/processor/target/mapstruct-processor-$mapstructVersion.jar"))
