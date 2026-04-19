@@ -18,6 +18,7 @@ import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
+import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Modifier as KSModifier
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.validate
@@ -26,7 +27,10 @@ import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.JavaFile
 import com.palantir.javapoet.MethodSpec
 import com.palantir.javapoet.ParameterSpec
+import com.palantir.javapoet.ParameterizedTypeName
+import com.palantir.javapoet.TypeName
 import com.palantir.javapoet.TypeSpec
+import com.palantir.javapoet.TypeVariableName
 import javax.lang.model.element.Modifier
 
 /**
@@ -85,34 +89,37 @@ class MapStructDriverProcessor(
 
     private fun generateDriver(mapper: KSClassDeclaration) {
         val shape = resolveShape(mapper) ?: return
-        if (mapper.typeParameters.isNotEmpty()) {
-            logger.error(
-                "mapstruct-ksp: @Mapper on ${mapper.qualifiedName?.asString()} — generic mapper " +
-                    "declarations are not supported in this iteration.",
-                mapper
-            )
-            return
-        }
 
         val pkg = mapper.packageName.asString()
         val originalSimpleName = mapper.simpleName.asString()
         val driverSimpleName = originalSimpleName + DRIVER_SUFFIX
-        val originalType = ClassName.get(pkg, originalSimpleName)
+        val originalRaw = ClassName.get(pkg, originalSimpleName)
+
+        // Class-level type parameters are mirrored onto the driver, and used to parameterise the
+        // super-type reference so `FooMapStruct<S, T> extends Foo<S, T>` compiles.
+        val classTypeVariables = mapper.typeParameters.map(::typeVariableNameOf)
+        val parameterisedSuper: TypeName = if (classTypeVariables.isEmpty()) {
+            originalRaw
+        } else {
+            ParameterizedTypeName.get(originalRaw, *classTypeVariables.toTypedArray())
+        }
 
         val typeBuilder = when (shape) {
             Shape.INTERFACE -> TypeSpec.interfaceBuilder(driverSimpleName)
                 .addModifiers(Modifier.PUBLIC)
-                .addSuperinterface(originalType)
+                .addTypeVariables(classTypeVariables)
+                .addSuperinterface(parameterisedSuper)
             Shape.ABSTRACT_CLASS -> TypeSpec.classBuilder(driverSimpleName)
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                .superclass(originalType)
+                .addTypeVariables(classTypeVariables)
+                .superclass(parameterisedSuper)
                 .also { addForwardingConstructorIfNeeded(it, mapper) }
         }
         typeBuilder.addJavadoc(
             "Generated driver for {@link \$T}. Do not edit.\n" +
                 "MapStruct's javac processor will produce an implementation of this type\n" +
                 "which transitively satisfies the Kotlin source ${shape.noun}.\n",
-            originalType
+            originalRaw
         )
 
         mapper.annotations
@@ -145,6 +152,11 @@ class MapStructDriverProcessor(
         val builder = MethodSpec.methodBuilder(fn.simpleName.asString())
             .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
             .addAnnotation(Override::class.java)
+
+        // Method-level type parameters (e.g. `fun <U> wrap(...)`). Class-level type parameters
+        // are handled on the enclosing TypeSpec and don't need to be repeated here; JavaPoet
+        // resolves bare TypeVariableName references against the enclosing declaration.
+        fn.typeParameters.forEach { builder.addTypeVariable(typeVariableNameOf(it)) }
 
         fn.annotations
             .filter { isMapStructAnnotation(it) }
@@ -256,6 +268,33 @@ class MapStructDriverProcessor(
         annotation.arguments.any {
             it.name?.asString() == IMPLEMENTATION_NAME_MEMBER && it.origin != Origin.SYNTHETIC
         }
+
+    /**
+     * Translate a Kotlin type parameter declaration (like `T : Number`) to a JavaPoet
+     * [TypeVariableName] with any declared upper bounds.
+     *
+     * Kotlin always adds an implicit `kotlin.Any?` upper bound when none is declared — we drop
+     * that to avoid emitting a spurious `<T extends Object>`, since Java already defaults to
+     * `Object` when no bound is given.
+     *
+     * Kotlin `where`-clause multi-bounds aren't supported in this iteration; only the primary
+     * bound flows through.
+     */
+    private fun typeVariableNameOf(tp: KSTypeParameter): TypeVariableName {
+        val name = tp.name.asString()
+        val bounds = tp.bounds
+            .map { it.resolve() }
+            .filterNot {
+                (it.declaration as? KSClassDeclaration)?.qualifiedName?.asString() == "kotlin.Any"
+            }
+            .map { typeTranslator.toTypeName(it) }
+            .toList()
+        return if (bounds.isEmpty()) {
+            TypeVariableName.get(name)
+        } else {
+            TypeVariableName.get(name, *bounds.toTypedArray())
+        }
+    }
 
     private enum class Shape(val noun: String) {
         INTERFACE("interface"),

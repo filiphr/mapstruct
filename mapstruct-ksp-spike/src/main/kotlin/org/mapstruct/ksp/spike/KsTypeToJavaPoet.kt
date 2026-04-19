@@ -7,10 +7,12 @@ package org.mapstruct.ksp.spike
 
 import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSType
+import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.Nullability
 import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.ParameterizedTypeName
 import com.palantir.javapoet.TypeName
+import com.palantir.javapoet.TypeVariableName
 
 /**
  * Translates a [KSType] (a Kotlin-source-level type) into a JavaPoet [TypeName] suitable for
@@ -47,8 +49,16 @@ class KsTypeToJavaPoet {
      *   Used for generic type arguments, where the JVM can't hold primitives.
      */
     private fun toTypeName(type: KSType, boxPrimitives: Boolean): TypeName {
-        val decl = type.declaration as? KSClassDeclaration
-            ?: error("Unsupported type declaration kind: ${type.declaration} (${type.declaration::class.simpleName})")
+        // Use of a type parameter in a signature position (e.g. `S` in `fun map(s: S): T`):
+        // render as a bare TypeVariableName. JavaPoet matches it by name to the declaration site
+        // on the enclosing TypeSpec / MethodSpec, which is where bounds are emitted.
+        val declaration = type.declaration
+        if (declaration is KSTypeParameter) {
+            return TypeVariableName.get(declaration.name.asString())
+        }
+
+        val decl = declaration as? KSClassDeclaration
+            ?: error("Unsupported type declaration kind: $declaration (${declaration::class.simpleName})")
         val fqn = decl.qualifiedName?.asString()
             ?: error("Type without qualified name: $decl")
 

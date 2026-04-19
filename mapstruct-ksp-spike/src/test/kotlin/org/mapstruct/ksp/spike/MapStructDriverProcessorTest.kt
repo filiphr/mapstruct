@@ -469,6 +469,111 @@ class MapStructDriverProcessorTest {
     }
 
     @Test
+    @DisplayName("class-level type parameters are mirrored on the driver and flow into `extends`")
+    fun classLevelTypeParameters() {
+        val result = compile(
+            SourceFile.kotlin(
+                "GenericMapper.kt",
+                """
+                package gp
+
+                import org.mapstruct.Mapper
+
+                @Mapper
+                interface GenericMapper<S, T> {
+                    fun map(s: S): T
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gp/GenericMapperMapStruct.java")
+        assertThat(driver)
+            .contains("interface GenericMapperMapStruct<S, T> extends GenericMapper<S, T>")
+            .contains("T map(S s)")
+    }
+
+    @Test
+    @DisplayName("upper-bounded type parameters carry the bound through")
+    fun boundedTypeParameters() {
+        val result = compile(
+            SourceFile.kotlin(
+                "BoundedMapper.kt",
+                """
+                package gp
+
+                import org.mapstruct.Mapper
+
+                @Mapper
+                interface BoundedMapper<T : Number> {
+                    fun describe(t: T): String
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gp/BoundedMapperMapStruct.java")
+        assertThat(driver)
+            .contains("<T extends Number>")
+            .contains("extends BoundedMapper<T>")
+            .contains("String describe(T t)")
+    }
+
+    @Test
+    @DisplayName("method-level type parameters are preserved on the driver method")
+    fun methodLevelTypeParameters() {
+        val result = compile(
+            SourceFile.kotlin(
+                "MM.kt",
+                """
+                package gp
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                interface MM {
+                    fun <U> wrap(value: U): List<U>
+                    fun simple(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gp/MMMapStruct.java")
+        assertThat(driver)
+            .contains("<U> List<U> wrap(U value)")
+            .contains("B simple(A a)")
+    }
+
+    @Test
+    @DisplayName("generic abstract-class mapper extends its parameterised parent")
+    fun abstractClassWithTypeParameters() {
+        val result = compile(
+            SourceFile.kotlin(
+                "GenericAbstract.kt",
+                """
+                package gp
+
+                import org.mapstruct.Mapper
+
+                @Mapper
+                abstract class GenericAbstract<S, T> {
+                    abstract fun map(s: S): T
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gp/GenericAbstractMapStruct.java")
+        assertThat(driver)
+            .contains("class GenericAbstractMapStruct<S, T> extends GenericAbstract<S, T>")
+            .contains("public abstract T map(S s)")
+    }
+
+    @Test
     @DisplayName("@Mapper on an abstract class produces an abstract driver class extending it")
     fun abstractClassWithoutCtorArgs() {
         val result = compile(
