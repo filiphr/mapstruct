@@ -97,6 +97,17 @@
             <artifactId>mapstruct</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--
+            End-to-end integration test runs MapStruct's javac processor on the KSP-generated
+            Java driver. Pull the shaded processor jar onto the test classpath so the e2e test
+            can locate it and wire it into kctfork's processingClasspaths (the path javac uses
+            for -processorpath).
+        -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
