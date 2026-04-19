@@ -20,6 +20,7 @@ import com.google.devtools.ksp.symbol.KSClassDeclaration
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.Origin
 import com.google.devtools.ksp.validate
+import com.palantir.javapoet.AnnotationSpec
 import com.palantir.javapoet.ClassName
 import com.palantir.javapoet.JavaFile
 import com.palantir.javapoet.MethodSpec
@@ -113,9 +114,10 @@ class MapStructDriverProcessor(
                 originalType
             )
 
+        val originalSimpleName = mapper.simpleName.asString()
         mapper.annotations
             .filter { isMapStructAnnotation(it) }
-            .forEach { typeBuilder.addAnnotation(annotationRenderer.toAnnotationSpec(it)) }
+            .forEach { typeBuilder.addAnnotation(classLevelAnnotationSpec(it, originalSimpleName)) }
 
         mapper.declarations
             .filterIsInstance<KSFunctionDeclaration>()
@@ -172,9 +174,42 @@ class MapStructDriverProcessor(
         return fqn.startsWith("org.mapstruct.")
     }
 
+    /**
+     * Copies a class-level MapStruct annotation from the Kotlin source onto the driver.
+     *
+     * For `@Mapper` specifically, inject `implementationName = "<original>Impl"` unless the user
+     * already supplied their own value. This makes `Mappers.getMapper(UserMapper::class.java)`
+     * resolve: MapStruct will emit `UserMapperImpl` rather than the default
+     * `UserMapperMapStructImpl`, and `Mappers.getMapper` looks up `UserMapperImpl` by its
+     * `<class-name>Impl` convention. The impl extends the driver, which extends the Kotlin
+     * interface, so the type cast inside `Mappers.getMapper` succeeds transitively.
+     */
+    private fun classLevelAnnotationSpec(
+        annotation: KSAnnotation,
+        originalSimpleName: String
+    ): AnnotationSpec {
+        val spec = annotationRenderer.toAnnotationSpec(annotation)
+        val fqn = annotation.annotationType.resolve().declaration.qualifiedName?.asString()
+        if (fqn != MAPPER_ANNOTATION_FQN) return spec
+        if (userSpecifiedImplementationName(annotation)) return spec
+        return spec.toBuilder()
+            .addMember("implementationName", "\$S", "${originalSimpleName}Impl")
+            .build()
+    }
+
+    /**
+     * Did the user explicitly write `implementationName = ...` on the `@Mapper`? KSP2 marks
+     * synthesised default arguments as [Origin.SYNTHETIC]; anything else is user-written.
+     */
+    private fun userSpecifiedImplementationName(annotation: KSAnnotation): Boolean =
+        annotation.arguments.any {
+            it.name?.asString() == IMPLEMENTATION_NAME_MEMBER && it.origin != Origin.SYNTHETIC
+        }
+
     companion object {
         const val MAPPER_ANNOTATION_FQN = "org.mapstruct.Mapper"
         const val DRIVER_SUFFIX = "MapStruct"
+        private const val IMPLEMENTATION_NAME_MEMBER = "implementationName"
     }
 }
 

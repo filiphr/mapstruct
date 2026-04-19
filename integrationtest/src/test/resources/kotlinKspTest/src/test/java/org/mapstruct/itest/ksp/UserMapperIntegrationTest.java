@@ -11,20 +11,19 @@ import org.mapstruct.factory.Mappers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Verifies that a Kotlin-side {@code @Mapper} interface, after running through
- * mapstruct-ksp (KSP) and mapstruct-processor (javac APT), produces an impl that
- * maps a Kotlin data class correctly at runtime.
+ * Verifies that a Kotlin {@code @Mapper} interface, after running through mapstruct-ksp (KSP)
+ * and mapstruct-processor (javac APT), produces an impl that maps a Kotlin data class correctly.
  *
- * Note: the user writes {@link UserMapper} in Kotlin, but the {@code Mappers.getMapper}
- * lookup targets the KSP-generated Java driver {@code UserMapperMapStruct} since that's
- * what the javac processor produced the impl for. Smoothing this to
- * {@code Mappers.getMapper(UserMapper.class)} is a follow-up decision.
+ * <p>Uses the natural {@code Mappers.getMapper(UserMapper.class)} — not the KSP-generated
+ * driver type. The processor injects {@code implementationName = "UserMapperImpl"} onto the
+ * driver's {@code @Mapper}, so MapStruct emits the impl under the Kotlin interface's name.
+ * The impl transitively implements the Kotlin interface via the driver, so this cast succeeds.
  */
 class UserMapperIntegrationTest {
 
     @Test
     void shouldMapKotlinDataClass() {
-        UserMapperMapStruct mapper = Mappers.getMapper( UserMapperMapStruct.class );
+        UserMapper mapper = Mappers.getMapper( UserMapper.class );
 
         UserDto dto = mapper.toDto( new User( "Alice", 30 ) );
 

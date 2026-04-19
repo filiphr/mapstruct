@@ -235,10 +235,11 @@ class MapStructDriverProcessorTest {
         )
 
         val driver = result.findGenerated("bare/BareMapperMapStruct.java")
-        // The filter should drop every synthesized default. The @Mapper line is therefore bare,
-        // not a 20-line dump of every Mapper attribute with its declared default.
+        // Synthetic defaults should be dropped. The only member we expect on the copied @Mapper
+        // is `implementationName` — injected by the processor so Mappers.getMapper works against
+        // the Kotlin interface. All the other 20-odd default fields must not appear.
         assertThat(driver)
-            .contains("@Mapper\n")
+            .contains("implementationName = \"BareMapperImpl\"")
             .doesNotContain("componentModel = \"default\"")
             .doesNotContain("ReportingPolicy.IGNORE")
             .doesNotContain("collectionMappingStrategy =")
@@ -313,6 +314,62 @@ class MapStructDriverProcessorTest {
             .doesNotContain("ignore = false")
             .doesNotContain("qualifiedBy = {}")
             .doesNotContain("dependsOn = {}")
+    }
+
+    @Test
+    @DisplayName("implementationName is injected so Mappers.getMapper(KotlinInterface::class.java) works")
+    fun implementationNameInjection() {
+        val result = compile(
+            SourceFile.kotlin(
+                "M.kt",
+                """
+                package inj
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper
+                interface UserMapper {
+                    fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("inj/UserMapperMapStruct.java")
+        // MapStruct's APT will emit UserMapperImpl (not UserMapperMapStructImpl), which matches
+        // the <class>Impl convention against the original Kotlin interface.
+        assertThat(driver).contains("implementationName = \"UserMapperImpl\"")
+    }
+
+    @Test
+    @DisplayName("user-specified implementationName is preserved (not overridden by injection)")
+    fun userImplementationNamePreserved() {
+        val result = compile(
+            SourceFile.kotlin(
+                "M.kt",
+                """
+                package inj
+
+                import org.mapstruct.Mapper
+
+                data class A(val v: String)
+                data class B(val v: String)
+
+                @Mapper(implementationName = "CustomImpl")
+                interface UserMapper {
+                    fun toB(a: A): B
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("inj/UserMapperMapStruct.java")
+        assertThat(driver)
+            .contains("implementationName = \"CustomImpl\"")
+            .doesNotContain("implementationName = \"UserMapperImpl\"")
     }
 
     @Test
