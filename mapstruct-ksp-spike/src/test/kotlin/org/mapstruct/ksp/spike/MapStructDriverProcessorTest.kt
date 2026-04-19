@@ -180,9 +180,73 @@ class MapStructDriverProcessorTest {
             // List<Item> → java.util.List<Item> (java.util.List imported, Item in same pkg).
             .contains("List<Item> items")
             .contains("List<ItemDto> toDtos(")
-            .contains("Integer count(")
+            // Non-null `Int` → JVM primitive `int`. Must be `int` (not `Integer`) so the driver's
+            // override signature matches what the Kotlin parent method compiles to.
+            .contains("int count(")
             .contains("String describe(")
             .contains("import java.util.List")
+    }
+
+    @Test
+    @DisplayName("nullable Kotlin primitives stay boxed; non-null ones become JVM primitives")
+    fun nullabilityControlsBoxing() {
+        val result = compile(
+            SourceFile.kotlin(
+                "NullabilityMapper.kt",
+                """
+                package nlb
+
+                import org.mapstruct.Mapper
+
+                data class Box(val value: Int)
+
+                @Mapper
+                interface NullabilityMapper {
+                    fun unboxed(b: Box): Int        // non-null Int -> primitive int
+                    fun maybe(b: Box): Int?         // nullable Int -> boxed Integer
+                    fun flagged(active: Boolean): Box
+                    fun maybeFlagged(active: Boolean?): Box
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("nlb/NullabilityMapperMapStruct.java")
+        assertThat(driver)
+            .contains("int unboxed(")
+            .contains("Integer maybe(")
+            .contains("boolean active")
+            // Nullable primitive parameter — must be boxed so `null` fits.
+            .contains("Boolean active")
+    }
+
+    @Test
+    @DisplayName("primitives in generic-argument positions stay boxed (JVM generics can't hold primitives)")
+    fun primitivesInGenericsStayBoxed() {
+        val result = compile(
+            SourceFile.kotlin(
+                "GenericsMapper.kt",
+                """
+                package gen
+
+                import org.mapstruct.Mapper
+
+                data class Box(val values: List<Int>)
+
+                @Mapper
+                interface GenericsMapper {
+                    fun sum(values: List<Int>): Int
+                }
+                """.trimIndent()
+            )
+        )
+
+        val driver = result.findGenerated("gen/GenericsMapperMapStruct.java")
+        assertThat(driver)
+            // List<Int> → List<Integer>, never List<int> (illegal in Java).
+            .contains("List<Integer> values")
+            // But the direct Int return is still a primitive.
+            .contains("int sum(")
     }
 
     @Test
