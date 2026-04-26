@@ -1,5 +1,11 @@
 ### Features
 
+* Add support for JSpecify nullness annotations (#1243) - MapStruct now detects `@NonNull`, `@Nullable`, `@NullMarked` and `@NullUnmarked` from `org.jspecify.annotations` to control null check generation:
+  - Source `@NonNull` skips null checks; target `@NonNull` always adds them
+  - `@NonNull` source parameters skip the method-level null guard
+  - `@NullMarked` / `@NullUnmarked` scope is resolved by walking method &rarr; class &rarr; outer class &rarr; package
+  - Compile error when mapping a potentially nullable source to a `@NonNull` constructor parameter without a `defaultValue`
+  - Can be disabled with the `mapstruct.disableJSpecify` compiler option
 * Add `URI` to `String` built-in conversions (#4018)
 
 ### Enhancements
@@ -28,6 +34,7 @@
 ### Build
 
 * Test on JDK 25 and 26, drop integration test on JDK 11
+* Specify OpenJDK 21 for the Jitpack build (#4042)
 * Add CodeQL custom workflow and set build mode for `java-kotlin` to `none`
 * Upgrade integration tests to JUnit 5 (#4023)
 * Update Maven compiler plugin (#3972)
